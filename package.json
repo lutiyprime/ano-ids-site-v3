@@ -1,0 +1,12 @@
+{
+  "name": "ano-ids-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/onest": "^5.0.0",
+    "@fontsource/jetbrains-mono": "^5.0.0"
+  }
+}
