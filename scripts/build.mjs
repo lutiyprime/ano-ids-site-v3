@@ -10,7 +10,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
 const SITE = 'АНО «ИДС»';
-const VERSION = '5';
+const VERSION = '6';
 
 const ORG_LD = {
   '@context': 'https://schema.org',
@@ -54,7 +54,7 @@ const head = ({ title, description, nav }) => `<!doctype html>
 <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/site.css?v=${VERSION}">
-<script>document.documentElement.classList.add('js')</script>
+<script>(function(d){d.classList.add('js');try{var t=+sessionStorage.getItem('ids-tr');sessionStorage.removeItem('ids-tr');if(t&&Date.now()-t<2500&&!matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('tr');d.style.setProperty('--tr',(t-Date.now())+'ms');window.IDS_TR=t}}catch(e){}})(document.documentElement)</script>
 <script type="application/ld+json">${JSON.stringify(ORG_LD)}</script>
 </head>
 <body data-page="${nav}">
@@ -80,7 +80,7 @@ function buildAssets() {
   }
 }
 
-// Стык — стилистическая вставка между крупными блоками. В странице пишется комментарием:
+// Стык — стилистическая вставка между крупными блоками (линейка с рамкой-сканером и координаты). В странице пишется комментарием:
 // <!--seam n="02" label="Принцип работы" theme="dark" k="ЗАДАЧА"-->
 // n — номер, label — подпись слева, theme — dark | dark-2 | light | mist | teal, k — подпись рамки сканера.
 const SEAM_RE = /<!--seam((?:\s+\w+="[^"]*")*)\s*-->/g;
@@ -92,7 +92,6 @@ function seam(attrs) {
   const left = a.label ? `<span class="seam-l">${a.n ? `<b>§ ${a.n}</b> — ` : ''}${a.label}</span>` : '<span class="seam-l"></span>';
   return `<div class="seam theme-${theme}" data-theme="${mode}" data-seam aria-hidden="true"><div class="wrap seam-in">${left}` +
     `<span class="seam-ruler"><i class="seam-scan" data-k="${a.k || 'ИДС'}"></i></span>` +
-    `<span class="lg lg-mark seam-mark" data-spin></span>` +
     `<span class="seam-r"><i class="seam-dot"></i><span class="seam-coord">${COORD}</span></span></div></div>`;
 }
 

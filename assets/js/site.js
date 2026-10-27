@@ -12,28 +12,51 @@
     set: function (k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
   };
   function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function hexA(hex, a) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h.replace(/./g, '$&$&');
+    var n = parseInt(h, 16);
+    return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  var scrollHooks = []; // компоненты ниже добавляют сюда обработчики прокрутки и смены размера
 
-  /* ——— Шторка: вход на страницу и переходы между страницами ——— */
+  /* ——— Шторка: вход на страницу и переходы между страницами ———
+     На шторке полный логотип; знак делает оборот за SPIN мс от клика по ссылке.
+     Новая страница продолжает тот же оборот (html.tr, см. scripts/build.mjs) и поднимает шторку, когда он заканчивается. */
+  var SPIN = 1100; // совпадает с --spin в site.css
+  var root = document.documentElement;
   var curtain = $('.curtain');
+  var arrived = root.classList.contains('tr') && !!window.IDS_TR;
   var firstVisit = !store.get('ids-seen');
-  var startDelay = reduce ? 0 : (firstVisit ? 1150 : 380);
+  var holdFor = arrived ? Math.max(0, SPIN - 120 - (Date.now() - window.IDS_TR)) : 0;
+  var startDelay = reduce ? 0 : arrived ? holdFor + 300 : (firstVisit ? 1500 : 380);
   store.set('ids-seen', '1');
 
+  function lift() {
+    curtain.classList.add('lift');
+    setTimeout(function () { root.classList.remove('tr'); }, 900);
+  }
   function liftCurtain() {
     if (!curtain) return;
     if (reduce) { curtain.style.display = 'none'; return; }
     curtain.classList.remove('drop', 'go');
-    if (firstVisit) {
+    if (arrived) setTimeout(lift, holdFor);
+    else if (firstVisit) {
       curtain.classList.add('intro');
-      setTimeout(function () { curtain.classList.add('lift'); }, 850);
+      setTimeout(lift, 1250);
     } else {
-      requestAnimationFrame(function () { requestAnimationFrame(function () { curtain.classList.add('lift'); }); });
+      requestAnimationFrame(function () { requestAnimationFrame(lift); });
     }
   }
   liftCurtain();
 
   window.addEventListener('pageshow', function (e) {
-    if (e.persisted && curtain) { curtain.classList.remove('drop', 'go', 'intro'); curtain.classList.add('lift'); }
+    if (e.persisted && curtain) {
+      store.set('ids-tr', '');
+      root.classList.remove('tr');
+      curtain.classList.remove('drop', 'go', 'intro');
+      curtain.classList.add('lift');
+    }
   });
 
   document.addEventListener('click', function (e) {
@@ -48,11 +71,13 @@
     if (url.pathname === location.pathname && url.hash) return;
     e.preventDefault();
     closeMenu(true);
+    store.set('ids-tr', String(Date.now()));
+    root.classList.remove('tr');
     curtain.classList.remove('lift', 'intro');
     curtain.classList.add('drop');
     void curtain.offsetWidth;
     curtain.classList.add('go');
-    setTimeout(function () { location.href = url.href; }, 470);
+    setTimeout(function () { location.href = url.href; }, 520);
   });
 
   /* ——— Шапка: цвет по секции, скрытие при прокрутке, прогресс ——— */
@@ -173,9 +198,29 @@
   }
   restagger();
 
+  /* ——— Рамка выделения в CTA облегает фактические строки заголовка ——— */
+  var frames = $$('[data-frame]');
+  function fitFrames() {
+    frames.forEach(function (f) {
+      var h = f.firstElementChild;
+      if (!h) return;
+      f.style.width = '';
+      var rg = document.createRange(), rs, l = Infinity, r = -Infinity;
+      rg.selectNodeContents(h);
+      rs = rg.getClientRects();
+      for (var i = 0; i < rs.length; i++) if (rs[i].width) { l = Math.min(l, rs[i].left); r = Math.max(r, rs[i].right); }
+      if (r > l) f.style.width = Math.ceil(r - f.getBoundingClientRect().left + 2) + 'px';
+    });
+  }
+  if (frames.length) {
+    fitFrames();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitFrames);
+    scrollHooks.push(function (resized) { if (resized) fitFrames(); });
+  }
+
   /* ——— Появление при прокрутке ——— */
   function startReveals() {
-    var targets = $$('[data-reveal],[data-split],[data-line],.hl,.ico');
+    var targets = $$('[data-reveal],[data-split],[data-line],[data-frame],.hl,.ico');
     if (reduce || !('IntersectionObserver' in window)) {
       targets.forEach(function (el) { el.classList.add('in'); });
       return;
@@ -256,10 +301,11 @@
     requestAnimationFrame(function () {
       ticking = false;
       updateHeader(); updateFills(); updateSteps(); updateParallax();
+      scrollHooks.forEach(function (fn) { fn(); });
     });
   }
   window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', function () { pinCheck(); restagger(); onScroll(); });
+  window.addEventListener('resize', function () { pinCheck(); restagger(); scrollHooks.forEach(function (fn) { fn(true); }); onScroll(); });
   onScroll();
 
   /* ——— Реестровые числа «набираются» ——— */
@@ -317,12 +363,6 @@
     if (ac.charAt(0) !== '#') ac = '#00B0B2';
     var mono = cssVar('--mono') || 'monospace';
 
-    function hexA(hex, a) {
-      var h = hex.replace('#', '');
-      if (h.length === 3) h = h.replace(/./g, '$&$&');
-      var n = parseInt(h, 16);
-      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
-    }
     function size() {
       var r = canvas.getBoundingClientRect();
       W = r.width; H = r.height;
@@ -556,6 +596,371 @@
   }
   $$('[data-court]').forEach(Court);
 
+  /* ——— Главная, проект: удар по мячу, собранный из точек ———
+     Та же сетка точек, что в первом экране, складывается в игрока с ракеткой. Прокрутка ведёт замах и удар,
+     затем поверх появляется то, что «видят» камеры: рамки, скелет позы, траектории и события «удар» и «отскок».
+     Мир сцены — 470×275 условных единиц (≈ см), земля на высоте GY; оси подписаны в метрах. */
+  function Swing(sec) {
+    var canvas = $('[data-swing-canvas]', sec);
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext('2d');
+    var pipe = $$('[data-swing-steps] li', sec);
+    var cs = getComputedStyle(sec);
+    var hex = function (v, d) { v = (v || '').trim(); return v.charAt(0) === '#' ? v : d; };
+    var FG = hex(cs.getPropertyValue('--fg'), '#F5F2EC');
+    var AC = hex(cs.getPropertyValue('--acc'), '#00B0B2');
+    var AT = hex(cs.getPropertyValue('--acc-text'), '#3FD0D2');
+    var BG = hex(cs.getPropertyValue('--bg'), '#062F3B');
+    var mono = cssVar('--mono') || 'monospace';
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var WW = 470, WH = 275, GY = 40, NET = 330, NETH = 50;
+    var W = 0, H = 0, S = 1, OX = 0, OY = 0, gap = 8, gw = 5, dots = [];
+    var pinned = false, target = 0, cur = -1, raf = 0;
+    var D2R = Math.PI / 180;
+    var ramp = function (p, a, b) { return clamp((p - a) / (b - a), 0, 1); };
+
+    // Позы удара справа (форхенд). Поля: доля прокрутки, бедро x и y, корпус°, плечо°, предплечье°, ракетка°,
+    // свободная рука — плечо° и предплечье°, подъём пятки задней ноги (0…1). Углы — от оси x против часовой.
+    var KEYS = [
+      [0.00, 132, 80, 86, 292, 12, 58, 284, 30, 0],
+      [0.24, 132, 80, 86, 292, 12, 58, 284, 30, 0],
+      [0.42, 124, 79, 97, 215, 140, 100, 320, 20, 0],
+      [0.48, 129, 77, 91, 250, 280, 245, 300, 330, 0.2],
+      [0.52, 136, 78, 80, 310, 350, 365, 250, 215, 0.45],
+      [0.64, 142, 81, 82, 400, 519, 585, 235, 300, 1],
+      [1.00, 142, 81, 82, 400, 519, 585, 235, 300, 1]
+    ];
+    // монотонная кубическая интерполяция (Фритч — Карлсон): движение плавное и без «перелётов» поз
+    var KP = KEYS.map(function (k) { return k[0]; }), TAN = [];
+    for (var ch = 1; ch < KEYS[0].length; ch++) {
+      var y = KEYS.map(function (k) { return k[ch]; }), n = y.length, d = [], m = [];
+      for (var i = 0; i < n - 1; i++) d.push((y[i + 1] - y[i]) / (KP[i + 1] - KP[i]));
+      m[0] = 0; m[n - 1] = 0;
+      for (i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+      for (i = 0; i < n - 1; i++) {
+        if (!d[i]) { m[i] = 0; m[i + 1] = 0; continue; }
+        var a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b;
+        if (h > 9) { var tt = 3 / Math.sqrt(h); m[i] = tt * a * d[i]; m[i + 1] = tt * b * d[i]; }
+      }
+      TAN[ch] = m;
+    }
+    function chan(p) {
+      var i = 0;
+      while (i < KP.length - 2 && p > KP[i + 1]) i++;
+      var h = KP[i + 1] - KP[i], t = clamp((p - KP[i]) / h, 0, 1), t2 = t * t, t3 = t2 * t, out = [];
+      for (var c = 1; c < KEYS[0].length; c++) {
+        out[c] = (2 * t3 - 3 * t2 + 1) * KEYS[i][c] + (t3 - 2 * t2 + t) * h * TAN[c][i] +
+          (-2 * t3 + 3 * t2) * KEYS[i + 1][c] + (t3 - t2) * h * TAN[c][i + 1];
+      }
+      return out;
+    }
+    function dir(a) { return [Math.cos(a * D2R), Math.sin(a * D2R)]; }
+    function add(p, v, l) { return [p[0] + v[0] * l, p[1] + v[1] * l]; }
+    function knee(hip, ank, L1, L2) { // колено по двум звеньям: стопа стоит на месте, колено смотрит вперёд
+      var dx = ank[0] - hip[0], dy = ank[1] - hip[1], dd = Math.min(Math.sqrt(dx * dx + dy * dy), L1 + L2 - 0.01);
+      var a = Math.atan2(dy, dx) + Math.acos(clamp((L1 * L1 + dd * dd - L2 * L2) / (2 * L1 * dd), -1, 1));
+      return [hip[0] + Math.cos(a) * L1, hip[1] + Math.sin(a) * L1];
+    }
+    function rig(p) {
+      var k = chan(p), hip = [k[1], GY + k[2]], td = dir(k[3]);
+      var sh = add(hip, td, 47), neck = add(hip, td, 54), head = add(neck, dir(k[3] - 8), 20);
+      var el = add(sh, dir(k[4]), 29), wr = add(el, dir(k[5]), 26), rd = dir(k[6]);
+      var el2 = add(sh, dir(k[7]), 28), wr2 = add(el2, dir(k[8]), 24);
+      var aF = [176, GY + 7], aB = [90 + k[9] * 7, GY + 7 + k[9] * 11];
+      return {
+        hip: hip, mid: add(hip, td, 22), sh: sh, neck: neck, head: head, el: el, wr: wr, el2: el2, wr2: wr2,
+        kF: knee(hip, aF, 45, 44), aF: aF, tF: [196, GY + 2], kB: knee(hip, aB, 45, 44), aB: aB, tB: [110, GY + 2],
+        rd: rd, rc: add(wr, rd, 31), rb: add(wr, rd, -4), rt: add(wr, rd, 14)
+      };
+    }
+    // мяч: подлёт к ракетке, после удара — через сетку, отскок и уход за край
+    var C = rig(0.52).rc, B0 = [492, GY + 130], B1 = [405, GY], B2 = [492, GY + 64];
+    function arc(a, b, u, hh) { return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + hh * Math.sin(Math.PI * u)]; }
+    function ballAt(p) {
+      if (p < 0.28 || p > 0.9) return null;
+      if (p <= 0.52) return arc(B0, C, (p - 0.28) / 0.24, 26);
+      if (p <= 0.71) return arc(C, B1, (p - 0.52) / 0.19, 80);
+      return arc(B1, B2, (p - 0.71) / 0.19, 46);
+    }
+
+    function X(x) { return OX + x * S; }
+    function Y(y) { return OY + (WH - y) * S; }
+    function size() {
+      var r = canvas.getBoundingClientRect();
+      if (!r.width) return;
+      W = r.width; H = r.height;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      S = Math.min(W / WW, H / WH); OX = (W - WW * S) / 2; OY = (H - WH * S) / 2;
+      gap = clamp(Math.round(S * 5.2), 5, 10); gw = gap / S;
+      dots = [];
+      var ox = (W % gap) / 2 + gap / 2, oy = (H % gap) / 2 + gap / 2, n = 0;
+      for (var yy = oy, iy = 0; yy < H; yy += gap, iy++) {
+        for (var xx = ox, ix = 0; xx < W; xx += gap, ix++) {
+          var s1 = Math.sin(++n * 12.9898) * 43758.5453;
+          dots.push({ x: xx, y: yy, wx: (xx - OX) / S, wy: WH - (yy - OY) / S, k: (ix + iy) & 1, r: s1 - Math.floor(s1) });
+        }
+      }
+    }
+    function segD(px, py, a, b) {
+      var vx = b[0] - a[0], vy = b[1] - a[1], wx = px - a[0], wy = py - a[1];
+      var l = vx * vx + vy * vy, t = l ? clamp((wx * vx + wy * vy) / l, 0, 1) : 0;
+      var dx = wx - vx * t, dy = wy - vy * t;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function label(txt, x, y, col, align) {
+      var w = ctx.measureText(txt).width;
+      if (align === 'right') x -= w;
+      ctx.fillStyle = col;
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, clamp(x, 4, W - 4 - w), y);
+    }
+    function trail(fn, from, to, step, every, col, a, r) { // точки через равные расстояния вдоль пути
+      var last = null, acc = 0;
+      ctx.fillStyle = hexA(col, a);
+      for (var s = from; s <= to; s += step) {
+        var q = fn(s);
+        if (!q) { last = null; continue; }
+        var x = X(q[0]), y = Y(q[1]);
+        if (last) acc += Math.hypot(x - last[0], y - last[1]);
+        if (!last || acc >= every) { acc = 0; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+        last = [x, y];
+      }
+    }
+    function corners(x0, y0, x1, y1, s) {
+      ctx.beginPath();
+      ctx.moveTo(x0, y0 + s); ctx.lineTo(x0, y0); ctx.lineTo(x0 + s, y0);
+      ctx.moveTo(x1 - s, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y0 + s);
+      ctx.moveTo(x1, y1 - s); ctx.lineTo(x1, y1); ctx.lineTo(x1 - s, y1);
+      ctx.moveTo(x0 + s, y1); ctx.lineTo(x0, y1); ctx.lineTo(x0, y1 - s);
+      ctx.stroke();
+    }
+    function tag(txt, x, y, col) { // подпись на подложке цвета фона — перекрывает подписи осей
+      var w = ctx.measureText(txt).width;
+      x = clamp(x, 4, W - 8 - w);
+      ctx.fillStyle = BG;
+      ctx.fillRect(x - 3, y - 10, w + 6, 14);
+      label(txt, x, y, col);
+    }
+    function chip(txt, x, y, a) { // метка события: залитая плашка
+      ctx.font = '10px ' + mono;
+      var w = ctx.measureText(txt).width + 12;
+      x = clamp(x, 4, W - 4 - w);
+      ctx.fillStyle = hexA(AC, 0.92 * a);
+      ctx.fillRect(Math.round(x), Math.round(y - 13), Math.round(w), 17);
+      label(txt, x + 6, y, hexA(BG, a));
+    }
+
+    function draw(p, still) {
+      if (!W) return;
+      var R = rig(p), ball = ballAt(p);
+      var mat = still ? 1 : ramp(p, 0.04, 0.22);
+      var cams = still ? 1 : ramp(p, 0.02, 0.12);
+      var det = still ? 1 : ramp(p, 0.22, 0.3);
+      var sk = still ? 1 : ramp(p, 0.26, 0.34);
+      var trk = still ? 1 : ramp(p, 0.44, 0.5);
+      var ana = still ? 1 : ramp(p, 0.74, 0.8);
+      ctx.clearRect(0, 0, W, H);
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
+
+      // фигура: части тела — отрезки с толщиной; 0 — ближняя сторона, 1 — дальняя, 2 — ручка ракетки
+      var P = [
+        [R.hip, R.mid, 11, 0], [R.mid, R.sh, 12, 0], [R.sh, R.neck, 3.5, 0], [R.head, R.head, 11, 0],
+        [R.sh, R.el, 5.5, 0], [R.el, R.wr, 4.6, 0], [R.wr, R.wr, 4.6, 0],
+        [R.sh, R.el2, 5.2, 1], [R.el2, R.wr2, 4.4, 1],
+        [R.hip, R.kF, 8.5, 0], [R.kF, R.aF, 6.3, 0], [R.aF, R.tF, 4, 0],
+        [R.hip, R.kB, 8.5, 1], [R.kB, R.aB, 6.3, 1], [R.aB, R.tB, 4, 1],
+        [R.rb, R.rt, 2.6, 2]
+      ];
+      var bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+      P.forEach(function (q) {
+        for (var e = 0; e < 2; e++) {
+          bx0 = Math.min(bx0, q[e][0] - q[2]); bx1 = Math.max(bx1, q[e][0] + q[2]);
+          by0 = Math.min(by0, q[e][1] - q[2]); by1 = Math.max(by1, q[e][1] + q[2]);
+        }
+      });
+      bx0 = Math.min(bx0, R.rc[0] - 18); bx1 = Math.max(bx1, R.rc[0] + 18);
+      by0 = Math.min(by0, R.rc[1] - 18); by1 = Math.max(by1, R.rc[1] + 18);
+      var m = gw * 1.2, rdx = R.rd[0], rdy = R.rd[1];
+      var scanY = mat > 0 && mat < 1 ? OY + mat * WH * S : -1e9;
+
+      for (var i = 0; i < dots.length; i++) {
+        var dt = dots[i], wx = dt.wx, wy = dt.wy, a = 0.1, sz = 1.4, col = FG, v = 0;
+        if (Math.abs(wy - GY) < gw * 0.5 && wx > 4 && wx < WW - 4) a = 0.3; // земля
+        else if (Math.abs(wx - NET) < gw * 0.5 && wy > GY && wy < GY + NETH + gw * 0.5) a = wy > GY + NETH - gw * 0.5 ? 0.55 : 0.28; // сетка корта
+        if (mat > 0 && wx > bx0 - m && wx < bx1 + m && wy > by0 - m && wy < by1 + m) {
+          var best = 1e9, kind = -1;
+          for (var j = 0; j < P.length; j++) {
+            var dd = segD(wx, wy, P[j][0], P[j][1]) - P[j][2];
+            if (dd < best) { best = dd; kind = P[j][3]; }
+          }
+          // голова ракетки — эллипс; ракетка для падела без струн, с отверстиями: часть точек внутри гаснет
+          var ux = wx - R.rc[0], uy = wy - R.rc[1];
+          var q = Math.sqrt(Math.pow((ux * rdx + uy * rdy) / 17, 2) + Math.pow((uy * rdx - ux * rdy) / 13.5, 2));
+          var de = (q - 1) * 13.5;
+          if (de < best) { best = de; kind = q < 0.78 && dt.k ? 4 : 3; }
+          v = clamp(0.5 - best / (gw * 0.65), 0, 1) * clamp((mat - dt.r * 0.6) / 0.4, 0, 1);
+          if (v > 0) {
+            if (kind >= 2) { col = AT; if (kind === 4) v *= 0.35; }
+            a = Math.max(a, 0.1 + v * (kind === 1 ? 0.5 : 0.86));
+            sz = 1.4 + v * (kind === 1 ? 1.1 : 1.6);
+          }
+        }
+        if (scanY > -1e8) { var sd = Math.abs(dt.y - scanY); if (sd < gap * 2) a += (1 - sd / (gap * 2)) * 0.22; }
+        if (ball) {
+          var bd = Math.hypot(wx - ball[0], wy - ball[1]);
+          if (bd < gw * 1.1) { col = AT; a = Math.max(a, 1 - bd / (gw * 1.6)); sz = Math.max(sz, 3.2 - bd / gw); }
+        }
+        ctx.fillStyle = hexA(col, Math.min(a, 1));
+        ctx.fillRect(dt.x - sz / 2, dt.y - sz / 2, sz, sz);
+      }
+
+      ctx.font = '10px ' + mono;
+      ctx.lineWidth = 1;
+      // оси в метрах — «числовая ось», как в первом экране
+      var ax = X(6), ay = Y(GY - 22), ly = Math.min(ay + 18, H - 3);
+      ctx.strokeStyle = hexA(FG, 0.22);
+      ctx.beginPath();
+      ctx.moveTo(X(6), ay + 0.5); ctx.lineTo(X(WW - 6), ay + 0.5);
+      ctx.moveTo(ax + 0.5, Y(GY)); ctx.lineTo(ax + 0.5, Y(WH - 8));
+      for (var t = 10; t <= WW - 10; t += 10) { var big = (t - 10) % 100 === 0; ctx.moveTo(Math.round(X(t)) + 0.5, ay); ctx.lineTo(Math.round(X(t)) + 0.5, ay + (big ? 7 : 3)); }
+      for (t = 0; t <= 250; t += 10) { big = t % 100 === 0; ctx.moveTo(ax, Math.round(Y(GY + t)) + 0.5); ctx.lineTo(ax + (big ? 7 : 3), Math.round(Y(GY + t)) + 0.5); }
+      ctx.stroke();
+      for (t = 0; t <= 4; t++) label(t + (t ? '' : ' м'), X(10 + t * 100) + 3, ly, hexA(FG, 0.45));
+      if (W > 520) for (t = 1; t <= 2; t++) label(t + ' м', ax + 11, Y(GY + t * 100) + 4, hexA(FG, 0.45));
+
+      // камеры и их поле зрения
+      if (cams > 0) {
+        var cone = cams * (still ? 0.6 : 1 - 0.6 * ramp(p, 0.42, 0.52));
+        [[14, 262, 1], [WW - 14, 262, -1]].forEach(function (c, k) {
+          ctx.strokeStyle = hexA(AC, 0.36 * cone);
+          ctx.setLineDash([3, 4]);
+          ctx.beginPath();
+          ctx.moveTo(X(c[0]), Y(c[1])); ctx.lineTo(X(c[2] > 0 ? 300 : 110), Y(GY));
+          ctx.moveTo(X(c[0]), Y(c[1])); ctx.lineTo(X(c[2] > 0 ? 60 : 420), Y(GY));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = hexA(AC, cams);
+          ctx.fillRect(X(c[0]) - 5, Y(c[1]) - 3.5, 10, 7);
+          label('КАМЕРА ' + (k + 1), X(c[0]) + (c[2] > 0 ? 10 : -10), Y(c[1]) + 4, hexA(AT, 0.9 * cams), c[2] > 0 ? 'left' : 'right');
+        });
+      }
+
+      // трекинг: путь мяча и дуга головы ракетки
+      if (trk > 0) {
+        var rc = function (s) { return rig(s).rc; };
+        trail(ballAt, 0.28, Math.min(p, 0.52), 0.001, 6, AT, 0.6 * trk * (still ? 0.4 : 1 - 0.6 * ramp(p, 0.52, 0.6)), 1.1);
+        if (p > 0.52) trail(ballAt, 0.52, Math.min(p, 0.9), 0.001, 6, AT, 0.75 * trk, 1.2);
+        // ракетка — «хвост» последних положений, а не вся петля замаха
+        var t0 = Math.max(0.4, Math.min(p, 0.66) - 0.08);
+        for (var tt = 0; tt < 4; tt++) trail(rc, t0 + tt * 0.02, Math.min(t0 + (tt + 1) * 0.02, p, 0.66), 0.0015, 7, AC, (0.15 + tt * 0.14) * trk * (1 - ramp(p, 0.68, 0.76)), 1.5);
+      }
+
+      // компьютерное зрение: рамка игрока и скелет позы
+      if (det > 0) {
+        var x0 = X(bx0) - 8, x1 = X(bx1) + 8, y0 = Y(by1) - 8, y1 = Y(Math.max(by0, GY)) + 4;
+        ctx.strokeStyle = hexA(AC, det);
+        ctx.lineWidth = 1.25;
+        corners(Math.round(x0) + 0.5, Math.round(y0) + 0.5, Math.round(x1) + 0.5, Math.round(y1) + 0.5, 12);
+        ctx.lineWidth = 1;
+        label('ИГРОК 1', x0, y0 - 8, hexA(AT, det));
+      }
+      if (sk > 0) {
+        var J = [R.head, R.sh, R.el, R.wr, R.el2, R.wr2, R.hip, R.kF, R.aF, R.kB, R.aB];
+        ctx.strokeStyle = hexA(AC, 0.85 * sk);
+        ctx.beginPath();
+        [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [1, 6], [6, 7], [7, 8], [6, 9], [9, 10]].forEach(function (e) {
+          ctx.moveTo(X(J[e[0]][0]), Y(J[e[0]][1])); ctx.lineTo(X(J[e[1]][0]), Y(J[e[1]][1]));
+        });
+        ctx.moveTo(X(R.wr[0]), Y(R.wr[1])); ctx.lineTo(X(R.rc[0]), Y(R.rc[1]));
+        ctx.stroke();
+        ctx.fillStyle = hexA(AT, sk);
+        J.forEach(function (q) { ctx.fillRect(X(q[0]) - 2, Y(q[1]) - 2, 4, 4); });
+        ctx.strokeStyle = hexA(AT, sk);
+        ctx.beginPath(); ctx.arc(X(R.rc[0]), Y(R.rc[1]), 3, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // мяч: рамка, подпись и проекции на оси с координатами
+      if (ball && det > 0) {
+        var mx = X(ball[0]), my = Y(ball[1]), bo = det * ramp(p, 0.3, 0.34) || (still ? 1 : 0);
+        if (bo > 0) {
+          ctx.strokeStyle = hexA(AC, bo);
+          corners(Math.round(mx - 9) + 0.5, Math.round(my - 9) + 0.5, Math.round(mx + 9) + 0.5, Math.round(my + 9) + 0.5, 5);
+          label('МЯЧ', mx + 14, my - 6, hexA(AT, bo));
+          var pr = bo * (still ? 1 : trk);
+          if (pr > 0) {
+            ctx.strokeStyle = hexA(FG, 0.22 * pr);
+            ctx.setLineDash([2, 4]);
+            ctx.beginPath(); ctx.moveTo(mx, my + 10); ctx.lineTo(mx, ay); ctx.moveTo(mx - 10, my); ctx.lineTo(ax, my); ctx.stroke();
+            ctx.setLineDash([]);
+            tag('X ' + ((ball[0] - 10) / 100).toFixed(2), mx + 4, ly, hexA(AT, pr));
+            tag('Y ' + ((ball[1] - GY) / 100).toFixed(2), ax + 11, my + 4, hexA(AT, pr));
+          }
+        }
+      }
+
+      // события: удар и отскок; на шаге «анализ событий» — плашки
+      [[0.52, C, 'УДАР'], [0.71, B1, 'ОТСКОК']].forEach(function (ev) {
+        if (p < ev[0]) return;
+        var ex = X(ev[1][0]), ey = Y(ev[1][1]), k = (p - ev[0]) / 0.07;
+        if (k < 1 && !still) {
+          ctx.strokeStyle = hexA(FG, 1 - k);
+          ctx.beginPath(); ctx.arc(ex, ey, 4 + 26 * k, 0, Math.PI * 2); ctx.stroke();
+        }
+        var la = still ? 1 : ramp(p, ev[0], ev[0] + 0.03);
+        ctx.strokeStyle = hexA(FG, 0.7 * la);
+        ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI * 2); ctx.stroke();
+        if (ana > 0) chip(ev[2], ex + 8, ey - 12, ana);
+        else label(ev[2], ex + 8, ey - 10, hexA(FG, 0.85 * la));
+      });
+
+      var step = still ? 3 : p < 0.24 ? 0 : p < 0.44 ? 1 : p < 0.74 ? 2 : 3;
+      if (!still && p < 0.02) step = -1;
+      pipe.forEach(function (li, k) { li.classList.toggle('on', k <= step); });
+    }
+
+    function pinTest() {
+      pinned = !reduce && window.innerWidth > 980 && window.innerHeight > 680;
+      sec.classList.toggle('is-pinned', pinned);
+    }
+    function progress() {
+      var vh = window.innerHeight;
+      if (pinned) {
+        var r = sec.getBoundingClientRect(), lead = vh * 0.35;
+        return clamp((lead - r.top) / (sec.offsetHeight - vh + lead), 0, 1);
+      }
+      var c = canvas.getBoundingClientRect();
+      return clamp((vh * 0.9 - c.top) / (vh * 0.7), 0, 1);
+    }
+    function tick() {
+      raf = 0;
+      var dd = target - cur;
+      cur = cur < 0 || Math.abs(dd) < 0.0006 ? target : cur + dd * 0.16;
+      draw(cur);
+      if (cur !== target) raf = requestAnimationFrame(tick);
+    }
+    function update(resized) {
+      if (resized) { pinTest(); size(); if (reduce) { draw(0.8, true); return; } cur = -1; }
+      if (reduce) return;
+      var p = progress();
+      if (pinned && p > 0.12 && !sec._shown) {
+        sec._shown = true;
+        $$('[data-reveal],[data-split],.hl,.ico', sec).forEach(function (el) { el.classList.add('in'); });
+      }
+      if (p === target && cur === target) return;
+      target = p;
+      if (!raf) raf = requestAnimationFrame(tick);
+    }
+
+    pinTest();
+    size();
+    if (reduce) draw(0.8, true);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (reduce) draw(0.8, true); else { cur = -1; update(); } });
+    scrollHooks.push(update);
+    update();
+  }
+  $$('[data-swing]').forEach(Swing);
+
   /* ——— Копирование реквизитов ——— */
   function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
@@ -740,8 +1145,8 @@
     el.appendChild(svg);
   });
 
-  /* Бесконечные анимации идут только на экране: стыки, мотивы, CTA */
-  var live = $$('[data-seam],.motif,.cta');
+  /* Анимации стыков и мотивов идут только на экране */
+  var live = $$('[data-seam],.motif');
   if (!reduce && 'IntersectionObserver' in window) {
     var lo = new IntersectionObserver(function (es) {
       es.forEach(function (e) { e.target.classList.toggle('is-on', e.isIntersecting); });

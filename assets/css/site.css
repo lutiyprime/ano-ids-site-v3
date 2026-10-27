@@ -117,7 +117,8 @@ address{font-style:normal}
 .lg::before,.lg::after{content:"";position:absolute;inset:0;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;transition:background-color .4s}
 .lg::before{background:var(--lg-ink)}
 .lg::after{background:var(--ids-teal)}
-.lg-mark{aspect-ratio:320/317}.lg-mark::before{-webkit-mask-image:url(../img/logo/mark-ink.webp);mask-image:url(../img/logo/mark-ink.webp)}.lg-mark::after{-webkit-mask-image:url(../img/logo/mark-teal.webp);mask-image:url(../img/logo/mark-teal.webp)}
+/* знак вращается вокруг центра апертуры, а не центра рамки */
+.lg-mark{aspect-ratio:320/317;transform-origin:51.2% 57.8%}.lg-mark::before{-webkit-mask-image:url(../img/logo/mark-ink.webp);mask-image:url(../img/logo/mark-ink.webp)}.lg-mark::after{-webkit-mask-image:url(../img/logo/mark-teal.webp);mask-image:url(../img/logo/mark-teal.webp)}
 .lg-word{aspect-ratio:360/93}.lg-word::before{-webkit-mask-image:url(../img/logo/word-ink.webp);mask-image:url(../img/logo/word-ink.webp)}.lg-word::after{-webkit-mask-image:url(../img/logo/word-teal.webp);mask-image:url(../img/logo/word-teal.webp)}
 .lg-cap{aspect-ratio:600/108}.lg-cap::before{-webkit-mask-image:url(../img/logo/caption-ink.webp);mask-image:url(../img/logo/caption-ink.webp)}.lg-cap::after{-webkit-mask-image:url(../img/logo/caption-teal.webp);mask-image:url(../img/logo/caption-teal.webp)}
 .site-header[data-on="light"] .lg{--lg-ink:var(--ids-deep-teal)}
@@ -155,15 +156,32 @@ address{font-style:normal}
 .menu.open ol li:nth-child(2) a{transition-delay:.04s}.menu.open ol li:nth-child(3) a{transition-delay:.08s}.menu.open ol li:nth-child(4) a{transition-delay:.12s}.menu.open ol li:nth-child(5) a{transition-delay:.16s}.menu.open ol li:nth-child(6) a{transition-delay:.2s}.menu.open ol li:nth-child(7) a{transition-delay:.24s}
 .menu-foot{margin-top:auto;font-size:12px;color:var(--ids-foam-2);letter-spacing:.06em}
 
-/* Шторка переходов */
-.curtain{position:fixed;inset:0;z-index:100;background:var(--ink);display:none;place-items:center;pointer-events:none;transform:translateY(0)}
+/* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак делает оборот.
+   Оборот начинается по клику и продолжается на новой странице без рывка: время клика передаётся
+   через sessionStorage, скрипт в <head> ставит html.tr и отрицательную задержку --tr (см. scripts/build.mjs). */
+.curtain{position:fixed;inset:0;z-index:100;background:var(--ink);display:none;place-items:center;pointer-events:none;transform:translateY(0);--spin:1.1s}
 .js .curtain{display:grid}
-.curtain-mark{width:96px;opacity:0}
-.curtain.intro .curtain-mark{animation:markIn .9s var(--ease) forwards}
+.curtain-logo{display:flex;flex-direction:column;align-items:center;width:clamp(190px,19vw,260px);opacity:0;--lg-ink:var(--paper)}
+.curtain-mark{width:65%}
+.curtain-word{width:55%;margin-top:5%}
+.curtain-cap{width:85%;margin-top:2%}
+.curtain.intro .curtain-logo,.curtain.go .curtain-logo,.tr .curtain-logo{opacity:1}
+.curtain.go .curtain-logo{transition:opacity .3s .12s}
+.curtain.intro .curtain-mark{animation:curtIn 1.2s var(--ease) both}
+.curtain.go .curtain-mark{animation:curtSpin var(--spin) var(--ease-io) both}
+.tr .curtain-mark{animation:curtSpin2 var(--spin) var(--ease-io) var(--tr,0ms) both}
+.curtain.intro .curtain-word,.curtain.intro .curtain-cap,.curtain.go .curtain-word,.curtain.go .curtain-cap{animation:curtWipe .7s var(--ease) .35s both}
+.curtain.intro .curtain-cap,.curtain.go .curtain-cap{animation-delay:.5s}
+.curtain.go .curtain-word{animation-delay:.12s}
+.curtain.go .curtain-cap{animation-delay:.22s}
 .curtain.lift{transform:translateY(-100%);transition:transform .8s var(--ease-io)}
+.curtain.lift .curtain-logo{opacity:0;transform:translateY(-8vh);transition:opacity .4s,transform .8s var(--ease-io)}
 .curtain.drop{transform:translateY(100%);transition:none}
 .curtain.drop.go{transform:none;transition:transform .5s var(--ease-io);pointer-events:auto}
-@keyframes markIn{0%{opacity:0;transform:rotate(-140deg) scale(.6)}100%{opacity:1;transform:none}}
+@keyframes curtIn{0%{opacity:0;transform:rotate(-240deg) scale(.7)}100%{opacity:1;transform:none}}
+@keyframes curtSpin{to{transform:rotate(-360deg)}}
+@keyframes curtSpin2{to{transform:rotate(-360deg)}}
+@keyframes curtWipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 
 .progress{position:fixed;left:0;top:0;right:0;height:2px;z-index:60;pointer-events:none}
 .progress span{display:block;height:100%;background:var(--accent);transform-origin:left;transform:scaleX(0)}
@@ -215,13 +233,6 @@ address{font-style:normal}
 .scroll-cue i::after{content:"";position:absolute;left:0;top:-40%;width:1px;height:40%;background:var(--accent);animation:cue 2.2s var(--ease-io) infinite}
 @keyframes cue{to{top:100%}}
 
-/* Бегущая строка */
-.ticker{border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;padding:18px 0;font-family:var(--mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.ticker-track{display:inline-flex;animation:tick 60s linear infinite}
-.ticker-track span{padding-right:56px;display:inline-flex;align-items:center;gap:56px}
-.ticker-track span::after{content:"";width:6px;height:6px;border:1px solid var(--accent);transform:rotate(45deg)}
-@keyframes tick{to{transform:translateX(-50%)}}
-
 /* Сетка 12 колонок */
 .g12{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:clamp(16px,2vw,32px)}
 .col-label{grid-column:1/4}
@@ -230,14 +241,14 @@ address{font-style:normal}
 
 /* Манифест с заливкой при скролле */
 .manifest{font-size:clamp(28px,3.6vw,56px);line-height:1.12;letter-spacing:-.03em;font-weight:400}
-.js .manifest[data-fill] .fw{color:var(--fg);opacity:.16;transition:opacity .25s linear}
+.js .manifest[data-fill] .fw{color:var(--fg);opacity:.3;transition:opacity .25s linear}
 .js .manifest[data-fill] .fw.on{opacity:1}
 .manifest-foot{margin-top:56px;display:flex;gap:40px;align-items:center;flex-wrap:wrap}
 
 /* Принцип работы — закреплённый сценарий */
 .process{position:relative}
 .process-pin{position:relative}
-.js .process.is-pinned{height:380vh}
+.js .process.is-pinned{height:300vh}
 .js .process.is-pinned .process-pin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;align-items:center}
 .process-grid{display:grid;grid-template-columns:5fr 7fr;gap:clamp(32px,6vw,120px);align-items:center;padding-top:clamp(88px,10vw,140px);padding-bottom:clamp(88px,10vw,140px)}
 .js .process.is-pinned .process-grid{padding-top:var(--header);padding-bottom:0}
@@ -495,11 +506,10 @@ address{font-style:normal}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
   .js [data-reveal],.js [data-split] .wi,.js [data-line]{opacity:1;transform:none}
   .js .manifest[data-fill] .fw{opacity:1}
-  .ticker-track{animation:none}
   .js .curtain{display:none}
 }
 @media print{
-  .site-header,.curtain,.progress,.menu,.field,.ticker{display:none!important}
+  .site-header,.curtain,.progress,.menu,.field{display:none!important}
   .theme-dark,.theme-dark-2{--bg:#fff;--fg:#000;--muted:#333}
   .lg{--lg-ink:var(--ids-deep-teal)}
   .lg::before,.lg::after{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -527,7 +537,7 @@ address{font-style:normal}
 /* Стык — стилистическая вставка между крупными блоками.
    Разметка подставляется сборкой из <!--seam ...--> (см. scripts/build.mjs и README). */
 .seam{position:relative;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.seam-in{position:relative;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:clamp(16px,3vw,40px);height:clamp(84px,9vw,120px)}
+.seam-in{position:relative;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:clamp(16px,3vw,40px);height:clamp(84px,9vw,120px)}
 .seam-l,.seam-r{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .seam-l b{color:var(--acc-text);font-weight:400}
 .seam-ruler{position:relative;height:28px;
@@ -544,16 +554,13 @@ address{font-style:normal}
     linear-gradient(90deg,transparent,color-mix(in srgb,var(--c) 22%,transparent),transparent);
   animation:seamScan 9s var(--ease-io) infinite alternate;animation-play-state:paused}
 .seam-scan::after{content:attr(data-k);position:absolute;left:0;top:-16px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--acc-text);white-space:nowrap}
-.seam.is-on .seam-scan,.seam.is-on .seam-dot{animation-play-state:running}
+.seam.is-on .seam-scan{animation-play-state:running}
 @keyframes seamScan{0%{left:0}30%{left:22%}55%{left:48%}80%{left:64%}100%{left:calc(100% - clamp(64px,8vw,120px))}}
-.seam-mark{width:clamp(34px,3.4vw,46px);--lg-ink:var(--fg)}
-.seam-dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 var(--acc);animation:seamPulse 2.4s ease-out infinite;animation-play-state:paused}
-@keyframes seamPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+.seam-dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 18%,transparent)}
 .seam-r{display:flex;align-items:center;gap:12px}
 /* соседние секции у стыка — плотнее: стык сам держит паузу */
 .seam+.section{padding-top:clamp(64px,7vw,112px)}
 .section:has(+.seam){padding-bottom:clamp(64px,7vw,112px)}
-.seam.theme-light .lg,.seam.theme-mist .lg,.seam.theme-teal .lg{--lg-ink:var(--ids-deep-teal)}
 
 /* Мотивы — графика в пустых колонках рядом с текстом (SVG строится в site.js) */
 .motif{position:relative;width:100%;max-width:300px;aspect-ratio:1;margin-top:clamp(28px,4vw,48px);color:var(--fg)}
@@ -565,20 +572,22 @@ address{font-style:normal}
 .motif .m-fill{fill:var(--acc)}
 .motif .m-dot{fill:var(--faint)}
 .motif .m-txt{font-family:var(--mono);font-size:8px;letter-spacing:.12em;fill:var(--acc-text)}
-.motif .m-spin{transform-origin:100px 100px;animation:mSpin 40s linear infinite}
-.motif .m-spin-r{transform-origin:100px 100px;animation:mSpin 60s linear infinite reverse}
-.motif .m-pulse{stroke-dasharray:10 240;animation:mDash 3.2s linear infinite}
-.motif .m-blink{animation:mBlink 2.4s ease-in-out infinite}
-.motif .m-box{animation:mBox 10s var(--ease-io) infinite}
-.motif .m-grow{transform-box:fill-box;transform-origin:left;animation:mGrow 6s var(--ease) infinite}
-.motif .m-orbit{transform-origin:100px 100px;animation:mSpin 14s linear infinite}
+/* мотивы стоят рядом с текстом, поэтому анимируются один раз при появлении, а не по кругу */
+.motif .m-spin{transform-origin:100px 100px;animation:mTurn 3s var(--ease) both}
+.motif .m-spin-r{transform-origin:100px 100px;animation:mTurnR 3.4s var(--ease) both}
+.motif .m-pulse{stroke-dasharray:10 240;animation:mDash 3.2s var(--ease-io) both}
+.motif .m-blink{animation:mBlink 2.4s ease-in-out 2}
+.motif .m-box{animation:mBox 10s var(--ease-io) both}
+.motif .m-grow{transform-box:fill-box;transform-origin:left;animation:mGrow 1.6s var(--ease) both}
+.motif .m-orbit{transform-origin:100px 100px;animation:mTurn 4s var(--ease) both}
 .motif *{animation-play-state:paused!important}
 .motif.is-on *{animation-play-state:running!important}
-@keyframes mSpin{to{transform:rotate(360deg)}}
+@keyframes mTurn{from{transform:rotate(-120deg)}to{transform:none}}
+@keyframes mTurnR{from{transform:rotate(120deg)}to{transform:none}}
 @keyframes mDash{from{stroke-dashoffset:250}to{stroke-dashoffset:0}}
 @keyframes mBlink{0%,100%{opacity:.25}50%{opacity:1}}
 @keyframes mBox{0%,12%{transform:translate(0,0)}22%,37%{transform:translate(66px,22px)}47%,62%{transform:translate(22px,88px)}72%,87%{transform:translate(88px,66px)}97%,100%{transform:translate(0,0)}}
-@keyframes mGrow{0%{transform:scaleX(0)}35%,80%{transform:scaleX(1)}100%{transform:scaleX(0)}}
+@keyframes mGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
 /* Иконки — линия «прорисовывается» при появлении блока */
 .ico{display:inline-grid;place-items:center;width:52px;height:52px;border:1px solid var(--line-strong);color:var(--acc-text);position:relative;flex:none}
@@ -618,19 +627,51 @@ address{font-style:normal}
 .page-hero .obs-field{-webkit-mask-image:linear-gradient(90deg,transparent 30%,#000 80%);mask-image:linear-gradient(90deg,transparent 30%,#000 80%);opacity:.9}
 .page-hero>.wrap{position:relative;z-index:1}
 
-/* CTA: крупный знак-апертура и сигнальная линия */
+/* CTA: заголовок «захвачен» рамкой выделения, как объект в кадре камеры. Рамка сжимается один раз при появлении.
+   Светлая версия — фон --ids-mist с линейкой сверху и точечной сеткой справа (не цвет лепестка логотипа). */
 .cta{overflow:hidden;isolation:isolate}
-.cta-mark{position:absolute;right:-8vw;top:50%;width:min(46vw,620px);margin-top:calc(min(46vw,620px) / -2);opacity:.1;pointer-events:none;z-index:-1;--lg-ink:var(--fg)}
 .cta .wrap{position:relative}
 .cta-row{position:relative}
-.cta-row::before{content:"";position:absolute;left:0;top:-1px;height:1px;width:22%;background:linear-gradient(90deg,transparent,var(--acc),transparent);animation:signal 6s var(--ease-io) infinite;animation-play-state:paused}
-.cta.is-on .cta-row::before{animation-play-state:running}
-@keyframes signal{0%{transform:translateX(-30%)}100%{transform:translateX(480%)}}
+.cta-frame{position:relative;width:fit-content;max-width:100%;margin-top:clamp(52px,5vw,76px);--c:var(--acc);--fx:min(26px,calc(var(--gutter) - 6px))}
+.cta-frame::before{content:"";position:absolute;inset:-18px calc(var(--fx) * -1);pointer-events:none;
+  background:
+    linear-gradient(var(--c),var(--c)) top left/18px 1.5px no-repeat,linear-gradient(var(--c),var(--c)) top left/1.5px 18px no-repeat,
+    linear-gradient(var(--c),var(--c)) top right/18px 1.5px no-repeat,linear-gradient(var(--c),var(--c)) top right/1.5px 18px no-repeat,
+    linear-gradient(var(--c),var(--c)) bottom left/18px 1.5px no-repeat,linear-gradient(var(--c),var(--c)) bottom left/1.5px 18px no-repeat,
+    linear-gradient(var(--c),var(--c)) bottom right/18px 1.5px no-repeat,linear-gradient(var(--c),var(--c)) bottom right/1.5px 18px no-repeat;
+  transition:inset 1.2s var(--ease) .15s,opacity .6s .15s}
+.cta-frame::after{content:attr(data-k);position:absolute;left:calc(var(--fx) * -1);top:-42px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc-text);white-space:nowrap;transition:opacity .6s .7s,transform .8s var(--ease) .7s}
+.cta .wrap>.cta-frame:first-child{margin-top:42px}
+.js .cta-frame:not(.in)::before{inset:-64px calc(var(--fx) * -3);opacity:0}
+.js .cta-frame:not(.in)::after{opacity:0;transform:translateY(8px)}
+.cta.theme-mist{border-top:1px solid var(--line);
+  background:
+    repeating-linear-gradient(90deg,var(--line-strong) 0 1px,transparent 1px 64px) 0 0/100% 14px no-repeat,
+    repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 8px) 0 0/100% 6px no-repeat,
+    var(--bg)}
+.cta.theme-mist::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(circle,rgba(14,104,115,.3) 1px,transparent 1.5px) 0 0/26px 26px;
+  -webkit-mask-image:linear-gradient(100deg,transparent 42%,#000 92%);mask-image:linear-gradient(100deg,transparent 42%,#000 92%)}
 .theme-teal .btn-accent{background:var(--ids-night);color:var(--paper)}
 .theme-teal .btn-accent::before{background:var(--paper)}
 .theme-teal .btn-accent:hover{color:var(--ids-night)}
 .theme-teal ::selection{background:var(--ids-night);color:var(--ids-teal)}
-.theme-teal .cta-mark{opacity:.16}
+
+/* Главная, проект: удар по мячу, собранный из точек сетки (сцена рисуется в site.js — Swing).
+   На десктопе секция закрепляется, и сцена идёт за прокруткой; на телефоне — по мере прохождения блока. */
+.swing{position:relative;isolation:isolate}
+.swing::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(60% 50% at 100% 0%,var(--glow),transparent 70%),radial-gradient(50% 45% at 0% 100%,var(--glow),transparent 70%)}
+.swing-grid{display:grid;grid-template-columns:7fr 5fr;gap:clamp(32px,5vw,96px);align-items:center;padding-top:clamp(64px,7vw,112px);padding-bottom:clamp(80px,9vw,140px)}
+.js .swing.is-pinned{height:300vh}
+.js .swing.is-pinned .swing-pin{position:sticky;top:0;height:100vh;display:flex;align-items:center}
+.js .swing.is-pinned .swing-grid{padding-top:calc(var(--header) * .5);padding-bottom:0}
+.swing-canvas{width:100%;height:auto;aspect-ratio:470/275}
+.swing .pipeline{margin-top:20px}
+.js .swing.is-pinned .lead{margin-top:20px!important}
+.js .swing.is-pinned .facts{margin-top:28px}
+.js .swing.is-pinned .manifest-foot{margin-top:24px!important}
+@media (max-width:980px){.swing-grid{grid-template-columns:1fr}}
 
 /* Команда: кольца-апертура за монограммой */
 .person{background:color-mix(in srgb,var(--paper-2) 45%,transparent)}
@@ -678,10 +719,9 @@ address{font-style:normal}
 @media (max-width:980px){
   .motif{max-width:220px}
   .split-head .motif,.col-label .motif{position:relative;top:auto}
-  .seam-in{grid-template-columns:1fr auto auto}
+  .seam-in{grid-template-columns:1fr auto}
   .seam-l{display:none}
   .foot-grid{grid-template-columns:1fr 1fr}
-  .cta-mark{width:80vw;right:-30vw;opacity:.07}
 }
 @media (max-width:680px){
   .motif{display:none}
@@ -698,6 +738,5 @@ address{font-style:normal}
   .ico::before{clip-path:inset(0 0 0 0)}
   .seam-scan{left:38%}
   .motif *{animation:none!important}
-  .cta-row::before{display:none}
 }
-@media print{.seam,.motif,.notice,.cta-mark{display:none!important}}
+@media print{.seam,.motif,.notice{display:none!important}}
