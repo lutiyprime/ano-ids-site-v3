@@ -97,9 +97,10 @@ address{font-style:normal}
 .btn-ghost{color:var(--fg);padding:0 4px;border-bottom:1px solid var(--line-strong);height:auto;padding-bottom:6px}
 .btn-ghost::before{display:none}
 .btn-ghost:hover{border-color:var(--fg)}
-.arr{position:relative;width:22px;height:1px;background:currentColor;flex:none;transition:width .45s var(--ease)}
+.arr{position:relative;width:22px;height:1px;background:currentColor;flex:none;transition:transform .45s var(--ease)}
 .arr::after{content:"";position:absolute;right:0;top:-4px;width:9px;height:9px;border-top:1px solid currentColor;border-right:1px solid currentColor;transform:rotate(45deg);transform-origin:center}
-.btn:hover .arr,.link-arrow:hover .arr{width:32px}
+/* стрелка сдвигается, а не удлиняется: ширина кнопки при наведении не меняется (иначе в узких рядах кнопка перескакивала на новую строку и мигала) */
+.btn:hover .arr,.link-arrow:hover .arr{transform:translateX(6px)}
 .link-arrow{display:inline-flex;align-items:center;gap:14px;font-weight:500;padding-bottom:6px;border-bottom:1px solid var(--line-strong);transition:border-color .3s}
 .link-arrow:hover{border-color:var(--fg)}
 
@@ -112,15 +113,12 @@ address{font-style:normal}
 .header-in{height:100%;display:flex;align-items:center;gap:32px}
 .brand{display:flex;align-items:center;gap:14px;flex:none}
 .brand{gap:12px}
-/* Логотип: растр присланного файла, разложенный на две маски (тёмная часть и бирюзовая), чтобы цвет тёмной части менялся под фон */
-.lg{position:relative;display:block;flex:none;--lg-ink:var(--paper)}
-.lg::before,.lg::after{content:"";position:absolute;inset:0;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;transition:background-color .4s}
-.lg::before{background:var(--lg-ink)}
-.lg::after{background:var(--ids-teal)}
+/* Логотип: инлайн-SVG из спрайта (src/partials/logo-sprite.svg). Тёмная часть — --lg-ink (на тёмном фоне светлая), бирюза — --lg-teal */
+.lg{position:relative;display:block;flex:none;height:auto;overflow:visible;color:var(--lg-ink);--lg-ink:var(--paper);--lg-teal:var(--ids-teal);transition:color .4s}
 /* знак вращается вокруг центра апертуры, а не центра рамки */
-.lg-mark{aspect-ratio:320/317;transform-origin:51.2% 57.8%}.lg-mark::before{-webkit-mask-image:url(../img/logo/mark-ink.webp);mask-image:url(../img/logo/mark-ink.webp)}.lg-mark::after{-webkit-mask-image:url(../img/logo/mark-teal.webp);mask-image:url(../img/logo/mark-teal.webp)}
-.lg-word{aspect-ratio:360/93}.lg-word::before{-webkit-mask-image:url(../img/logo/word-ink.webp);mask-image:url(../img/logo/word-ink.webp)}.lg-word::after{-webkit-mask-image:url(../img/logo/word-teal.webp);mask-image:url(../img/logo/word-teal.webp)}
-.lg-cap{aspect-ratio:600/108}.lg-cap::before{-webkit-mask-image:url(../img/logo/caption-ink.webp);mask-image:url(../img/logo/caption-ink.webp)}.lg-cap::after{-webkit-mask-image:url(../img/logo/caption-teal.webp);mask-image:url(../img/logo/caption-teal.webp)}
+.lg-mark{aspect-ratio:733/724;transform-origin:51% 58.4%}
+.lg-word{aspect-ratio:614/157}
+.lg-cap{aspect-ratio:959/179}
 .site-header[data-on="light"] .lg{--lg-ink:var(--ids-deep-teal)}
 .brand-mark{width:38px;transition:transform 1.2s var(--ease)}
 .brand:hover .brand-mark{transform:rotate(-120deg)}
@@ -130,8 +128,8 @@ address{font-style:normal}
 .nav ul{display:flex;gap:clamp(16px,2vw,30px)}
 .nav a{font-size:14px;position:relative;padding:6px 0;opacity:.9;transition:opacity .25s}
 .nav a::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:currentColor;transform:scaleX(0);transform-origin:right;transition:transform .45s var(--ease)}
-.nav a:hover,.nav a[aria-current]{opacity:1}
-.nav a:hover::after,.nav a[aria-current]::after{transform:scaleX(1);transform-origin:left}
+.nav a:hover,.nav a[aria-current],.nav a[data-parent]{opacity:1}
+.nav a:hover::after,.nav a[aria-current]::after,.nav a[data-parent]::after{transform:scaleX(1);transform-origin:left}
 .header-cta{color:inherit;border-color:color-mix(in srgb,currentColor 35%,transparent)}
 .site-header[data-on="light"] .header-cta:hover{color:var(--paper)}
 .site-header[data-on="light"] .header-cta::before{background:var(--ink)}
@@ -156,10 +154,11 @@ address{font-style:normal}
 .menu.open ol li:nth-child(2) a{transition-delay:.04s}.menu.open ol li:nth-child(3) a{transition-delay:.08s}.menu.open ol li:nth-child(4) a{transition-delay:.12s}.menu.open ol li:nth-child(5) a{transition-delay:.16s}.menu.open ol li:nth-child(6) a{transition-delay:.2s}.menu.open ol li:nth-child(7) a{transition-delay:.24s}
 .menu-foot{margin-top:auto;font-size:12px;color:var(--ids-foam-2);letter-spacing:.06em}
 
-/* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак делает оборот.
-   Оборот начинается по клику и продолжается на новой странице без рывка: время клика передаётся
-   через sessionStorage, скрипт в <head> ставит html.tr и отрицательную задержку --tr (см. scripts/build.mjs). */
-.curtain{position:fixed;inset:0;z-index:100;background:var(--ink);display:none;place-items:center;pointer-events:none;transform:translateY(0);--spin:1.1s}
+/* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак делает оборот в два полуоборота.
+   Первый (0 → −180°) — на старой странице, заканчивается в покое ровно к моменту перехода.
+   Второй (−180° → −360°) — на новой странице с первого кадра (html.tr ставит скрипт в <head>, см. scripts/build.mjs).
+   Пока браузер грузит страницу, знак стоит, поэтому пауза любой длины не даёт рывка. Логотип — инлайн-SVG, не перезагружается. */
+.curtain{position:fixed;inset:0;z-index:100;background:var(--ink);display:none;place-items:center;pointer-events:none;transform:translateY(0)}
 .js .curtain{display:grid}
 .curtain-logo{display:flex;flex-direction:column;align-items:center;width:clamp(190px,19vw,260px);opacity:0;--lg-ink:var(--paper)}
 .curtain-mark{width:65%}
@@ -168,19 +167,19 @@ address{font-style:normal}
 .curtain.intro .curtain-logo,.curtain.go .curtain-logo,.tr .curtain-logo{opacity:1}
 .curtain.go .curtain-logo{transition:opacity .3s .12s}
 .curtain.intro .curtain-mark{animation:curtIn 1.2s var(--ease) both}
-.curtain.go .curtain-mark{animation:curtSpin var(--spin) var(--ease-io) both}
-.tr .curtain-mark{animation:curtSpin2 var(--spin) var(--ease-io) var(--tr,0ms) both}
-.curtain.intro .curtain-word,.curtain.intro .curtain-cap,.curtain.go .curtain-word,.curtain.go .curtain-cap{animation:curtWipe .7s var(--ease) .35s both}
-.curtain.intro .curtain-cap,.curtain.go .curtain-cap{animation-delay:.5s}
-.curtain.go .curtain-word{animation-delay:.12s}
-.curtain.go .curtain-cap{animation-delay:.22s}
+.curtain.go .curtain-mark{animation:curtHalf .56s var(--ease-io) both}
+.tr .curtain-mark{animation:curtHalf2 .8s var(--ease-io) both}
+.curtain.intro .curtain-word,.curtain.intro .curtain-cap{animation:curtWipe .7s var(--ease) .35s both}
+.curtain.intro .curtain-cap{animation-delay:.5s}
+.curtain.go .curtain-word,.curtain.go .curtain-cap{animation:curtWipe .4s var(--ease) .06s both}
+.curtain.go .curtain-cap{animation-delay:.12s}
 .curtain.lift{transform:translateY(-100%);transition:transform .8s var(--ease-io)}
 .curtain.lift .curtain-logo{opacity:0;transform:translateY(-8vh);transition:opacity .4s,transform .8s var(--ease-io)}
 .curtain.drop{transform:translateY(100%);transition:none}
 .curtain.drop.go{transform:none;transition:transform .5s var(--ease-io);pointer-events:auto}
 @keyframes curtIn{0%{opacity:0;transform:rotate(-240deg) scale(.7)}100%{opacity:1;transform:none}}
-@keyframes curtSpin{to{transform:rotate(-360deg)}}
-@keyframes curtSpin2{to{transform:rotate(-360deg)}}
+@keyframes curtHalf{from{transform:none}to{transform:rotate(-180deg)}}
+@keyframes curtHalf2{from{transform:rotate(-180deg)}to{transform:rotate(-360deg)}}
 @keyframes curtWipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 
 .progress{position:fixed;left:0;top:0;right:0;height:2px;z-index:60;pointer-events:none}
@@ -241,7 +240,7 @@ address{font-style:normal}
 
 /* Манифест с заливкой при скролле */
 .manifest{font-size:clamp(28px,3.6vw,56px);line-height:1.12;letter-spacing:-.03em;font-weight:400}
-.js .manifest[data-fill] .fw{color:var(--fg);opacity:.3;transition:opacity .25s linear}
+.js .manifest[data-fill] .fw{color:var(--fg);opacity:.3;transition:opacity .45s ease-out}
 .js .manifest[data-fill] .fw.on{opacity:1}
 .manifest-foot{margin-top:56px;display:flex;gap:40px;align-items:center;flex-wrap:wrap}
 
@@ -402,12 +401,17 @@ address{font-style:normal}
 .consent input:checked{background:var(--acc);border-color:var(--acc)}
 .consent input:checked::after{content:"";width:9px;height:5px;border-left:1.5px solid var(--bg);border-bottom:1.5px solid var(--bg);transform:translateY(-1px) rotate(-45deg)}
 .consent a{color:var(--fg);border-bottom:1px solid var(--line-strong)}
-.form-foot{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-top:28px;flex-wrap:wrap}
-.form-status{font-size:14px;color:var(--muted);min-height:1.5em}
+.form-foot{display:flex;flex-direction:column;align-items:flex-start;gap:16px;margin-top:28px}
+/* статус — отдельной строкой под кнопкой: появление текста не двигает кнопку */
+.form-status{order:2;font-size:14px;color:var(--muted);min-height:1.5em;margin:0}
+.form-status:empty{display:none}
 .form-status.ok{color:var(--acc-text)}
 .form-status.err{color:#D9705E}
 .theme-light .form-status.err{color:#A3402F}
 .field.invalid{border-color:#D9705E}
+.field.invalid label{color:#D9705E}
+.theme-light .field.invalid{border-color:#A3402F}.theme-light .field.invalid label{color:#A3402F}
+.consent.invalid input{border-color:#A3402F}
 .btn[disabled]{opacity:.5;pointer-events:none}
 
 /* Текстовая страница (политика) */
@@ -447,8 +451,9 @@ address{font-style:normal}
 .nf .page-index{-webkit-text-stroke:1px var(--line-strong)}
 
 /* ——— Адаптив ——— */
-@media (max-width:1180px){
-  .nav,.brand-name{display:none}
+@media (max-width:1240px){.brand-name{display:none}}
+@media (max-width:1000px){
+  .nav{display:none}
   .burger{display:inline-block}
   .header-cta{margin-left:auto}
   .burger{margin-left:0}
@@ -512,7 +517,6 @@ address{font-style:normal}
   .site-header,.curtain,.progress,.menu,.field{display:none!important}
   .theme-dark,.theme-dark-2{--bg:#fff;--fg:#000;--muted:#333}
   .lg{--lg-ink:var(--ids-deep-teal)}
-  .lg::before,.lg::after{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
 /* Без закрепления (мобильные, reduced motion) счётчик шагов не нужен */
@@ -573,21 +577,28 @@ address{font-style:normal}
 .motif .m-dot{fill:var(--faint)}
 .motif .m-txt{font-family:var(--mono);font-size:8px;letter-spacing:.12em;fill:var(--acc-text)}
 /* мотивы стоят рядом с текстом, поэтому анимируются один раз при появлении, а не по кругу */
-.motif .m-spin{transform-origin:100px 100px;animation:mTurn 3s var(--ease) both}
-.motif .m-spin-r{transform-origin:100px 100px;animation:mTurnR 3.4s var(--ease) both}
-.motif .m-pulse{stroke-dasharray:10 240;animation:mDash 3.2s var(--ease-io) both}
-.motif .m-blink{animation:mBlink 2.4s ease-in-out 2}
-.motif .m-box{animation:mBox 10s var(--ease-io) both}
-.motif .m-grow{transform-box:fill-box;transform-origin:left;animation:mGrow 1.6s var(--ease) both}
-.motif .m-orbit{transform-origin:100px 100px;animation:mTurn 4s var(--ease) both}
+/* Мотивы живут, пока на экране: медленные бесконечные циклы (на паузе вне экрана и при «уменьшить движение») */
+.motif .m-rot-slow{transform-origin:100px 100px;animation:mSpin 60s linear infinite}
+.motif .m-rot-r{transform-origin:100px 100px;animation:mSpin 16s linear infinite reverse}
+.motif .m-sweep{transform-origin:100px 100px;animation:mSpin 6s linear infinite}
+.motif .m-ping{transform-box:fill-box;transform-origin:center;opacity:0;animation:mPing 6s ease-out infinite}
+.motif .m-hit{opacity:.35;animation:mHit 6s ease-out infinite}
+.motif .m-wave{transform-box:fill-box;transform-origin:center;opacity:0;animation:mWave 3.6s cubic-bezier(.2,.6,.3,1) infinite}
+.motif .m-pulse{stroke-dasharray:10 240;animation:mDash 4.8s var(--ease-io) infinite}
+.motif .m-blink{animation:mBlink 2.4s ease-in-out infinite}
+.motif .m-box{animation:mBox 10s var(--ease-io) infinite}
+.motif .m-grow{transform-box:fill-box;transform-origin:left;animation:mGrowLoop 7s var(--ease) infinite}
+.motif .m-orbit{transform-origin:100px 100px;animation:mSpin 14s linear infinite}
 .motif *{animation-play-state:paused!important}
 .motif.is-on *{animation-play-state:running!important}
-@keyframes mTurn{from{transform:rotate(-120deg)}to{transform:none}}
-@keyframes mTurnR{from{transform:rotate(120deg)}to{transform:none}}
+@keyframes mSpin{to{transform:rotate(360deg)}}
+@keyframes mPing{0%{opacity:.9;transform:scale(.4)}35%{opacity:0;transform:scale(1.6)}100%{opacity:0;transform:scale(1.6)}}
+@keyframes mHit{0%{opacity:1}40%,100%{opacity:.35}}
+@keyframes mWave{0%{opacity:.8;transform:scale(.08)}100%{opacity:0;transform:scale(1)}}
+@keyframes mGrowLoop{0%{transform:scaleX(0)}25%,80%{transform:scaleX(1)}100%{transform:scaleX(0)}}
 @keyframes mDash{from{stroke-dashoffset:250}to{stroke-dashoffset:0}}
 @keyframes mBlink{0%,100%{opacity:.25}50%{opacity:1}}
 @keyframes mBox{0%,12%{transform:translate(0,0)}22%,37%{transform:translate(66px,22px)}47%,62%{transform:translate(22px,88px)}72%,87%{transform:translate(88px,66px)}97%,100%{transform:translate(0,0)}}
-@keyframes mGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
 /* Иконки — линия «прорисовывается» при появлении блока */
 .ico{display:inline-grid;place-items:center;width:52px;height:52px;border:1px solid var(--line-strong);color:var(--acc-text);position:relative;flex:none}
@@ -738,5 +749,7 @@ address{font-style:normal}
   .ico::before{clip-path:inset(0 0 0 0)}
   .seam-scan{left:38%}
   .motif *{animation:none!important}
+  .motif .m-ping,.motif .m-wave{opacity:0}
+  .motif .m-hit{opacity:1}
 }
 @media print{.seam,.motif,.notice{display:none!important}}

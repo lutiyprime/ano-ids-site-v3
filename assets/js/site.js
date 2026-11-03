@@ -21,14 +21,15 @@
   var scrollHooks = []; // компоненты ниже добавляют сюда обработчики прокрутки и смены размера
 
   /* ——— Шторка: вход на страницу и переходы между страницами ———
-     На шторке полный логотип; знак делает оборот за SPIN мс от клика по ссылке.
-     Новая страница продолжает тот же оборот (html.tr, см. scripts/build.mjs) и поднимает шторку, когда он заканчивается. */
-  var SPIN = 1100; // совпадает с --spin в site.css
+     На шторке полный логотип. По клику знак делает полуоборот (HALF мс) и останавливается — в этот момент
+     начинается переход. Новая страница с первого кадра доводит оборот до конца (html.tr, см. scripts/build.mjs)
+     и поднимает шторку. Пока браузер грузит страницу, знак стоит, поэтому рывка нет при любой скорости сети. */
+  var HALF = 560; // совпадает с длительностью curtHalf в site.css
   var root = document.documentElement;
   var curtain = $('.curtain');
   var arrived = root.classList.contains('tr') && !!window.IDS_TR;
   var firstVisit = !store.get('ids-seen');
-  var holdFor = arrived ? Math.max(0, SPIN - 120 - (Date.now() - window.IDS_TR)) : 0;
+  var holdFor = arrived ? 260 : 0;
   var startDelay = reduce ? 0 : arrived ? holdFor + 300 : (firstVisit ? 1500 : 380);
   store.set('ids-seen', '1');
 
@@ -50,6 +51,29 @@
   }
   liftCurtain();
 
+  /* Предзагрузка: при наведении на внутреннюю ссылку страница скачивается заранее, переход почти мгновенный */
+  var prefetched = {};
+  function internalUrl(a) {
+    if (!a || a.target === '_blank' || a.hasAttribute('download')) return null;
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || /^(mailto|tel):/.test(href)) return null;
+    var url = new URL(a.href, location.href);
+    return url.origin === location.origin ? url : null;
+  }
+  function prefetch(e) {
+    var url = internalUrl(e.target.closest && e.target.closest('a[href]'));
+    if (!url || url.pathname === location.pathname) return;
+    var key = url.pathname;
+    if (prefetched[key]) return;
+    prefetched[key] = true;
+    var l = document.createElement('link');
+    l.rel = 'prefetch'; l.href = url.origin + url.pathname;
+    document.head.appendChild(l);
+  }
+  document.addEventListener('pointerover', prefetch, { passive: true });
+  document.addEventListener('touchstart', prefetch, { passive: true });
+  document.addEventListener('focusin', prefetch);
+
   window.addEventListener('pageshow', function (e) {
     if (e.persisted && curtain) {
       store.set('ids-tr', '');
@@ -60,24 +84,19 @@
   });
 
   document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a[href]');
-    if (!a || reduce || !curtain) return;
+    if (reduce || !curtain) return;
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    if (a.target === '_blank' || a.hasAttribute('download')) return;
-    var href = a.getAttribute('href');
-    if (!href || href.charAt(0) === '#' || /^(mailto|tel):/.test(href)) return;
-    var url = new URL(a.href, location.href);
-    if (url.origin !== location.origin) return;
+    var url = internalUrl(e.target.closest && e.target.closest('a[href]'));
+    if (!url) return;
     if (url.pathname === location.pathname && url.hash) return;
     e.preventDefault();
     closeMenu(true);
-    store.set('ids-tr', String(Date.now()));
     root.classList.remove('tr');
     curtain.classList.remove('lift', 'intro');
     curtain.classList.add('drop');
     void curtain.offsetWidth;
     curtain.classList.add('go');
-    setTimeout(function () { location.href = url.href; }, 520);
+    setTimeout(function () { store.set('ids-tr', String(Date.now())); location.href = url.href; }, HALF + 20);
   });
 
   /* ——— Шапка: цвет по секции, скрытие при прокрутке, прогресс ——— */
@@ -243,7 +262,9 @@
     fills.forEach(function (f) {
       if (!f.words.length) return;
       var r = f.el.getBoundingClientRect();
-      var p = clamp((vh * 0.88 - r.top) / (r.height + vh * 0.3), 0, 1);
+      // «линия чтения» на 90% высоты экрана: слово проявляется, когда до неё доходит его строка.
+      // Как только абзац целиком на экране, он проявлен полностью
+      var p = clamp((vh * 0.9 - r.top) / r.height, 0, 1);
       var n = Math.round(p * f.words.length);
       for (var i = 0; i < f.words.length; i++) f.words[i].classList.toggle('on', i < n);
     });
@@ -1003,6 +1024,7 @@
       var sync = function () { f.classList.toggle('filled', !!input.value); if (input.value) f.classList.remove('invalid'); };
       input.addEventListener('input', sync); input.addEventListener('change', sync); sync();
     });
+    form.elements.consent.addEventListener('change', function () { if (this.checked) this.closest('.consent').classList.remove('invalid'); });
     function setStatus(msg, cls) { status.textContent = msg; status.className = 'form-status' + (cls ? ' ' + cls : ''); }
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1017,6 +1039,7 @@
         if (bad) ok = false;
       });
       var consent = form.elements.consent;
+      consent.closest('.consent').classList.toggle('invalid', !consent.checked);
       if (!consent.checked) ok = false;
       if (!ok) { setStatus('Заполните обязательные поля и подтвердите согласие на обработку данных.', 'err'); return; }
       var action = form.getAttribute('action');
@@ -1070,21 +1093,63 @@
 
   /* Мотивы: графика в пустых колонках. <div class="motif" data-motif="network" aria-hidden="true"></div> */
   var MOTIFS = {
+    // Сканер: шкала медленно вращается, луч обходит круг, отмеченные точки вспыхивают, когда луч их проходит
     aperture: function (g) {
       svgEl('circle', { cx: 100, cy: 100, r: 92, class: 'm-faint' }, g);
-      var r1 = svgEl('g', { class: 'm-spin' }, g);
-      svgEl('circle', { cx: 100, cy: 100, r: 80, class: 'm-line', 'stroke-dasharray': '2 6' }, r1);
-      for (var i = 0; i < 12; i++) {
-        var a = i * Math.PI / 6;
-        svgEl('line', { x1: 100 + 80 * Math.cos(a), y1: 100 + 80 * Math.sin(a), x2: 100 + 88 * Math.cos(a), y2: 100 + 88 * Math.sin(a), class: 'm-line' }, r1);
+      var dial = svgEl('g', { class: 'm-rot-slow' }, g);
+      svgEl('circle', { cx: 100, cy: 100, r: 80, class: 'm-line', 'stroke-dasharray': '2 6' }, dial);
+      for (var i = 0; i < 36; i++) {
+        var a = i * Math.PI / 18, l = i % 3 ? 84 : 89;
+        svgEl('line', { x1: 100 + 80 * Math.cos(a), y1: 100 + 80 * Math.sin(a), x2: 100 + l * Math.cos(a), y2: 100 + l * Math.sin(a), class: i % 3 ? 'm-faint' : 'm-line' }, dial);
       }
-      var r2 = svgEl('g', { class: 'm-spin-r' }, g);
-      svgEl('circle', { cx: 100, cy: 100, r: 62, class: 'm-acc', 'stroke-dasharray': '120 270' }, r2);
-      svgEl('circle', { cx: 162, cy: 100, r: 3, class: 'm-fill' }, r2);
       svgEl('circle', { cx: 100, cy: 100, r: 44, class: 'm-faint' }, g);
-      svgEl('line', { x1: 0, y1: 100, x2: 200, y2: 100, class: 'm-faint' }, g);
-      svgEl('line', { x1: 100, y1: 0, x2: 100, y2: 200, class: 'm-faint' }, g);
-      svgEl('text', { x: 0, y: 196, class: 'm-txt' }, g).textContent = 'ИДС · ЗАДАЧА → РЕШЕНИЕ';
+      svgEl('line', { x1: 8, y1: 100, x2: 192, y2: 100, class: 'm-faint' }, g);
+      svgEl('line', { x1: 100, y1: 8, x2: 100, y2: 192, class: 'm-faint' }, g);
+      // луч: сектор-шлейф из нескольких клиньев с убывающей прозрачностью и ведущая линия
+      var sweep = svgEl('g', { class: 'm-sweep' }, g);
+      var wedge = function (a0, a1) {
+        var r = 78, p0 = [100 + r * Math.cos(a0), 100 + r * Math.sin(a0)], p1 = [100 + r * Math.cos(a1), 100 + r * Math.sin(a1)];
+        return 'M100 100L' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 0 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + 'z';
+      };
+      [0.16, 0.1, 0.06, 0.03].forEach(function (o, k) {
+        var w = svgEl('path', { d: wedge(-(k + 1) * 0.16, -k * 0.16), class: 'm-fill' }, sweep);
+        w.style.opacity = o;
+      });
+      svgEl('line', { x1: 100, y1: 100, x2: 178, y2: 100, class: 'm-acc' }, sweep);
+      // встречная дуга с точкой
+      var arc = svgEl('g', { class: 'm-rot-r' }, g);
+      svgEl('circle', { cx: 100, cy: 100, r: 62, class: 'm-acc', 'stroke-dasharray': '90 300', opacity: 0.7 }, arc);
+      svgEl('circle', { cx: 162, cy: 100, r: 3, class: 'm-fill' }, arc);
+      // цели: вспыхивают, когда их проходит луч (период луча — 6 с, см. .m-sweep в site.css)
+      [[38, 58], [140, 34], [252, 70], [305, 50]].forEach(function (t) {
+        var ang = t[0] * Math.PI / 180, x = 100 + t[1] * Math.cos(ang), y = 100 + t[1] * Math.sin(ang);
+        var d = (t[0] / 360 * 6).toFixed(2) + 's';
+        var ring = svgEl('circle', { cx: x, cy: y, r: 7, class: 'm-acc m-ping' }, g);
+        var dot = svgEl('circle', { cx: x, cy: y, r: 2.6, class: 'm-fill m-hit' }, g);
+        ring.style.animationDelay = d; dot.style.animationDelay = d;
+      });
+      svgEl('circle', { cx: 100, cy: 100, r: 3, class: 'm-fill' }, g);
+      svgEl('text', { x: 0, y: 198, class: 'm-txt' }, g).textContent = 'ИДС · ЗАДАЧА → РЕШЕНИЕ';
+      return true;
+    },
+    // Точка на карте: от адреса расходятся круги, кольцо координат медленно вращается
+    signal: function (g) {
+      svgEl('circle', { cx: 100, cy: 100, r: 92, class: 'm-faint' }, g);
+      var ring = svgEl('g', { class: 'm-rot-slow' }, g);
+      svgEl('circle', { cx: 100, cy: 100, r: 80, class: 'm-line', 'stroke-dasharray': '1 5' }, ring);
+      svgEl('path', { d: 'M100 14v10M100 176v10M14 100h10M176 100h10', class: 'm-line' }, ring);
+      for (var y = 0; y < 7; y++) for (var x = 0; x < 7; x++) {
+        var cx = 28 + x * 24, cy = 28 + y * 24;
+        if (Math.hypot(cx - 100, cy - 100) < 74) svgEl('circle', { cx: cx, cy: cy, r: 1.2, class: 'm-dot' }, g);
+      }
+      [0, 1.2, 2.4].forEach(function (d) {
+        var w = svgEl('circle', { cx: 100, cy: 100, r: 64, class: 'm-acc m-wave' }, g);
+        w.style.animationDelay = d + 's';
+      });
+      svgEl('path', { d: 'M86 100h-14M114 100h14M100 86v-14M100 114v14', class: 'm-acc' }, g);
+      svgEl('circle', { cx: 100, cy: 100, r: 5, class: 'm-fill' }, g);
+      svgEl('text', { x: 0, y: 8, class: 'm-txt' }, g).textContent = 'МОСКВА · ИЦ «СКОЛКОВО»';
+      svgEl('text', { x: 0, y: 198, class: 'm-txt' }, g).textContent = '55.70° N · 37.36° E';
       return true;
     },
     network: function (g) {

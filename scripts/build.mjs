@@ -1,7 +1,8 @@
 // Сборка статического сайта АНО «ИДС» в папку dist/.
 // Страницы — src/pages/*.html; первая строка каждой — метаданные:
 // <!--meta {"title": "...", "description": "...", "nav": "about"} -->
-// Общие части (шапка, подвал) — src/partials/. Логотип — маски из растра логотипа в assets/img/logo/. Запуск: npm run build (или node scripts/build.mjs).
+// Общие части (шапка, подвал) — src/partials/. Логотип — SVG-спрайт src/partials/logo-sprite.svg, встраивается в каждую страницу.
+// Запуск: npm run build (или node scripts/build.mjs).
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
 const SITE = 'АНО «ИДС»';
-const VERSION = '6';
+const VERSION = '7';
 
 const ORG_LD = {
   '@context': 'https://schema.org',
@@ -38,6 +39,16 @@ const FONTS = [
 
 const read = (p) => readFileSync(join(SRC, p), 'utf8');
 
+// Логотип: в исходниках пишется <span class="lg lg-mark …"></span> (lg-mark | lg-word | lg-cap),
+// при сборке становится <svg><use href="#lg-mark"/></svg> со ссылкой на встроенный спрайт.
+const SPRITE = read('partials/logo-sprite.svg').replace(/^<!--[\s\S]*?-->\n/, '');
+const LOGO_VB = Object.fromEntries([...SPRITE.matchAll(/<symbol id="lg-(\w+)" viewBox="([^"]+)"/g)].map((m) => [m[1], m[2]]));
+const LOGO_RE = /<span class="lg lg-(mark|word|cap)([^"]*)"([^>]*)><\/span>/g;
+const logo = (html) => html.replace(LOGO_RE, (_, k, cls, attrs) =>
+  `<svg class="lg lg-${k}${cls}" viewBox="${LOGO_VB[k]}"${/role=|aria-hidden=/.test(attrs) ? attrs : attrs + ' aria-hidden="true"'} focusable="false"><use href="#lg-${k}"/></svg>`);
+// Пункты меню, которые живут внутри другого раздела шапки (подсвечиваем родителя)
+const NAV_PARENT = { team: 'about', documents: 'about' };
+
 const head = ({ title, description, nav }) => `<!doctype html>
 <html lang="ru">
 <head>
@@ -51,14 +62,16 @@ const head = ({ title, description, nav }) => `<!doctype html>
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${description}">
 <meta name="theme-color" content="#031B23">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/site.css?v=${VERSION}">
-<script>(function(d){d.classList.add('js');try{var t=+sessionStorage.getItem('ids-tr');sessionStorage.removeItem('ids-tr');if(t&&Date.now()-t<2500&&!matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('tr');d.style.setProperty('--tr',(t-Date.now())+'ms');window.IDS_TR=t}}catch(e){}})(document.documentElement)</script>
+<script>(function(d){d.classList.add('js');try{var t=+sessionStorage.getItem('ids-tr');sessionStorage.removeItem('ids-tr');if(t&&Date.now()-t<6000&&!matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('tr');window.IDS_TR=t}}catch(e){}})(document.documentElement)</script>
 <script type="application/ld+json">${JSON.stringify(ORG_LD)}</script>
 </head>
 <body data-page="${nav}">
-`;
+${SPRITE}`;
 
 const foot = `<script src="assets/js/site.js?v=${VERSION}" defer></script>
 </body>
@@ -104,11 +117,12 @@ function buildPages() {
     const meta = JSON.parse(m[1]);
     const nav = meta.nav || '';
     const title = nav === 'home' ? meta.title : `${meta.title} — ${SITE}`;
-    const hdr = header.replaceAll(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`);
+    let hdr = header.replaceAll(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`);
+    if (NAV_PARENT[nav]) hdr = hdr.replace(`data-nav="${NAV_PARENT[nav]}"`, `data-nav="${NAV_PARENT[nav]}" data-parent`);
     const html = head({ title, description: meta.description, nav }) + hdr +
       '<main id="main">\n' + raw.slice(m[0].length).replace(SEAM_RE, (_, at) => seam(at)) + '</main>\n' +
       (meta.nofooter ? '' : footer) + foot;
-    writeFileSync(join(OUT, name), html);
+    writeFileSync(join(OUT, name), logo(html));
     console.log('built', name);
   }
 }
