@@ -1026,6 +1026,10 @@
     });
     form.elements.consent.addEventListener('change', function () { if (this.checked) this.closest('.consent').classList.remove('invalid'); });
     function setStatus(msg, cls) { status.textContent = msg; status.className = 'form-status' + (cls ? ' ' + cls : ''); }
+    // Ответ обработчика при отправке без JavaScript (см. api/lead.js)
+    var q = location.search;
+    if (/[?&]sent=1/.test(q)) setStatus('Спасибо! Заявка отправлена, мы свяжемся с вами.', 'ok');
+    else if (/[?&]error=1/.test(q)) setStatus('Не удалось отправить. Проверьте поля и попробуйте ещё раз.', 'err');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var ok = true;
@@ -1045,8 +1049,10 @@
       var action = form.getAttribute('action');
       if (!action) { setStatus('Отправка формы пока не подключена.', 'err'); return; }
       var btn = $('button[type="submit"]', form);
+      var data = {};
+      new FormData(form).forEach(function (v, k) { data[k] = v; });
       btn.disabled = true; setStatus('Отправляем…');
-      fetch(action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } })
+      fetch(action, { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Accept: 'application/json' } })
         .then(function (r) {
           if (!r.ok) throw new Error(r.status);
           form.reset();

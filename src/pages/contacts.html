@@ -28,13 +28,14 @@
       <div class="motif" data-motif="signal" aria-hidden="true"></div>
     </div>
 
-    <!-- ФОРМА. Укажите адрес обработчика в action (POST, поля name/org/contact/task/consent).
-         Скрипт отправляет форму через fetch и ждёт ответ 2xx. Пока action пуст, форма сообщает, что отправка не настроена. -->
-    <form class="form" id="form" action="" method="post" novalidate data-form data-reveal>
+    <!-- ФОРМА. Обработчик — api/lead.js (Vercel), присылает заявку в Telegram. Поля: name/org/contact/task/consent,
+         website — ловушка для ботов. Скрипт шлёт JSON и ждёт ответ 2xx; без JavaScript — обычный POST с редиректом обратно. -->
+    <form class="form" id="form" action="/api/lead" method="post" novalidate data-form data-reveal>
       <div class="field"><label for="f-name">Имя <span class="req">*</span></label><input id="f-name" name="name" autocomplete="name" required></div>
       <div class="field"><label for="f-org">Организация</label><input id="f-org" name="org" autocomplete="organization"></div>
       <div class="field"><label for="f-contact">E-mail или телефон <span class="req">*</span></label><input id="f-contact" name="contact" autocomplete="email" required></div>
-      <div class="field"><label for="f-task">Задача <span class="req">*</span></label><textarea id="f-task" name="task" rows="4" required></textarea></div>
+      <div class="field"><label for="f-task">Задача <span class="req">*</span></label><textarea id="f-task" name="task" rows="4" maxlength="4000" required></textarea></div>
+      <div class="hp" aria-hidden="true"><label for="f-website">Сайт</label><input id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
       <!-- С 01.09.2025 согласие на обработку ПДн оформляется отдельно от иных документов (ч. 1 ст. 9 152-ФЗ): текст согласия — на странице consent.html, галочка не проставлена заранее. -->
       <label class="consent"><input type="checkbox" name="consent" value="yes" required><span>Даю <a href="consent.html" target="_blank">согласие на&nbsp;обработку персональных данных</a> <span class="req">*</span></span></label>
       <p class="consent-note">Отправляя форму, вы подтверждаете, что ознакомились с&nbsp;<a href="privacy.html" target="_blank">Политикой обработки персональных данных</a>.</p>
