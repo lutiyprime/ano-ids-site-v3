@@ -413,7 +413,6 @@ address{font-style:normal}
 .theme-light .field.invalid{border-color:#A3402F}.theme-light .field.invalid label{color:#A3402F}
 .consent.invalid input{border-color:#A3402F}
 .btn[disabled]{opacity:.5;pointer-events:none}
-.form .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 
 /* Текстовая страница (политика) */
 .prose{max-width:46em}
