@@ -11,7 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
 const SITE = 'АНО «ИДС»';
-const VERSION = '7';
+const VERSION = '8';
+// Вращение знака на шторке (мс): оборот и разгон после клика — те же, что curtSpin / curtRamp в site.css.
+// Скрипт в <head> по времени клика ставит --sd, чтобы новая страница продолжила вращение с того же угла:
+// после разгона угол = 360° · (прошло − RAMP/2) / SPIN.
+const SPIN = 1200;
+const RAMP = 350;
 
 const ORG_LD = {
   '@context': 'https://schema.org',
@@ -67,7 +72,7 @@ const head = ({ title, description, nav }) => `<!doctype html>
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/site.css?v=${VERSION}">
-<script>(function(d){d.classList.add('js');try{var t=+sessionStorage.getItem('ids-tr');sessionStorage.removeItem('ids-tr');if(t&&Date.now()-t<6000&&!matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('tr');window.IDS_TR=t}}catch(e){}})(document.documentElement)</script>
+<script>(function(d){d.classList.add('js');try{var t=+sessionStorage.getItem('ids-tr'),e=Date.now()-t;sessionStorage.removeItem('ids-tr');if(t&&e<6000&&!matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('tr');d.style.setProperty('--sd',-(Math.max(0,e-${RAMP / 2})%${SPIN})+'ms');window.IDS_TR=t}}catch(x){}})(document.documentElement)</script>
 <script type="application/ld+json">${JSON.stringify(ORG_LD)}</script>
 </head>
 <body data-page="${nav}">

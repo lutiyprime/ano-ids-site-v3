@@ -21,10 +21,10 @@
   var scrollHooks = []; // компоненты ниже добавляют сюда обработчики прокрутки и смены размера
 
   /* ——— Шторка: вход на страницу и переходы между страницами ———
-     На шторке полный логотип. По клику знак делает полуоборот (HALF мс) и останавливается — в этот момент
-     начинается переход. Новая страница с первого кадра доводит оборот до конца (html.tr, см. scripts/build.mjs)
-     и поднимает шторку. Пока браузер грузит страницу, знак стоит, поэтому рывка нет при любой скорости сети. */
-  var HALF = 560; // совпадает с длительностью curtHalf в site.css
+     На шторке полный логотип. По клику шторка закрывает страницу (COVER мс), знак разгоняется и крутится
+     без остановки. Время клика уходит в sessionStorage: новая страница по нему ставит угол знака
+     (html.tr и --sd, см. scripts/build.mjs), и вращение продолжается с того же места, пока шторка уходит. */
+  var COVER = 560; // шторка опускается за .5 с (.curtain.drop.go в site.css), плюс запас
   var root = document.documentElement;
   var curtain = $('.curtain');
   var arrived = root.classList.contains('tr') && !!window.IDS_TR;
@@ -90,13 +90,14 @@
     if (!url) return;
     if (url.pathname === location.pathname && url.hash) return;
     e.preventDefault();
+    var clickedAt = Date.now();
     closeMenu(true);
     root.classList.remove('tr');
     curtain.classList.remove('lift', 'intro');
     curtain.classList.add('drop');
     void curtain.offsetWidth;
     curtain.classList.add('go');
-    setTimeout(function () { store.set('ids-tr', String(Date.now())); location.href = url.href; }, HALF + 20);
+    setTimeout(function () { store.set('ids-tr', String(clickedAt)); location.href = url.href; }, COVER + 20);
   });
 
   /* ——— Шапка: цвет по секции, скрытие при прокрутке, прогресс ——— */

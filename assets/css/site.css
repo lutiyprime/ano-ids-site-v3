@@ -154,10 +154,11 @@ address{font-style:normal}
 .menu.open ol li:nth-child(2) a{transition-delay:.04s}.menu.open ol li:nth-child(3) a{transition-delay:.08s}.menu.open ol li:nth-child(4) a{transition-delay:.12s}.menu.open ol li:nth-child(5) a{transition-delay:.16s}.menu.open ol li:nth-child(6) a{transition-delay:.2s}.menu.open ol li:nth-child(7) a{transition-delay:.24s}
 .menu-foot{margin-top:auto;font-size:12px;color:var(--ids-foam-2);letter-spacing:.06em}
 
-/* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак делает оборот в два полуоборота.
-   Первый (0 → −180°) — на старой странице, заканчивается в покое ровно к моменту перехода.
-   Второй (−180° → −360°) — на новой странице с первого кадра (html.tr ставит скрипт в <head>, см. scripts/build.mjs).
-   Пока браузер грузит страницу, знак стоит, поэтому пауза любой длины не даёт рывка. Логотип — инлайн-SVG, не перезагружается. */
+/* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак вращается без остановки.
+   По клику знак разгоняется (curtRamp, .35 с) и дальше крутится с постоянной скоростью (curtSpin, оборот за 1,2 с).
+   Угол — функция времени от клика: новая страница (html.tr, скрипт в <head>, см. scripts/build.mjs) ставит
+   --sd так, что с первого кадра знак стоит там, где был бы на старой, и вращение продолжается без паузы.
+   Числа 1.2s / .35s / 52.5deg (= 180° · .35 / 1.2, угол в конце разгона) совпадают с SPIN/RAMP в scripts/build.mjs. */
 .curtain{position:fixed;inset:0;z-index:100;background:var(--ink);display:none;place-items:center;pointer-events:none;transform:translateY(0)}
 .js .curtain{display:grid}
 .curtain-logo{display:flex;flex-direction:column;align-items:center;width:clamp(190px,19vw,260px);opacity:0;--lg-ink:var(--paper)}
@@ -167,8 +168,9 @@ address{font-style:normal}
 .curtain.intro .curtain-logo,.curtain.go .curtain-logo,.tr .curtain-logo{opacity:1}
 .curtain.go .curtain-logo{transition:opacity .3s .12s}
 .curtain.intro .curtain-mark{animation:curtIn 1.2s var(--ease) both}
-.curtain.go .curtain-mark{animation:curtHalf .56s var(--ease-io) both}
-.tr .curtain-mark{animation:curtHalf2 .8s var(--ease-io) both}
+/* Разгон стоит последним и перекрывает вращение, пока идёт; вращение стартует с фазой .175 с — ровно там, где разгон закончился */
+.curtain.go .curtain-mark{animation:curtSpin 1.2s linear .175s infinite,curtRamp .35s cubic-bezier(.33,0,.67,.33) backwards}
+.tr .curtain-mark{animation:curtSpin 1.2s linear var(--sd,0s) infinite}
 .curtain.intro .curtain-word,.curtain.intro .curtain-cap{animation:curtWipe .7s var(--ease) .35s both}
 .curtain.intro .curtain-cap{animation-delay:.5s}
 .curtain.go .curtain-word,.curtain.go .curtain-cap{animation:curtWipe .4s var(--ease) .06s both}
@@ -178,8 +180,8 @@ address{font-style:normal}
 .curtain.drop{transform:translateY(100%);transition:none}
 .curtain.drop.go{transform:none;transition:transform .5s var(--ease-io);pointer-events:auto}
 @keyframes curtIn{0%{opacity:0;transform:rotate(-240deg) scale(.7)}100%{opacity:1;transform:none}}
-@keyframes curtHalf{from{transform:none}to{transform:rotate(-180deg)}}
-@keyframes curtHalf2{from{transform:rotate(-180deg)}to{transform:rotate(-360deg)}}
+@keyframes curtRamp{from{transform:none}to{transform:rotate(-52.5deg)}}
+@keyframes curtSpin{from{transform:none}to{transform:rotate(-360deg)}}
 @keyframes curtWipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 
 .progress{position:fixed;left:0;top:0;right:0;height:2px;z-index:60;pointer-events:none}
