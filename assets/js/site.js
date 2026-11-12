@@ -954,7 +954,8 @@
     }
 
     function pinTest() {
-      pinned = !reduce && window.innerWidth > 980 && window.innerHeight > 680;
+      // data-swing="inline" — компактный вариант: секция не закрепляется, сцена идёт по мере прохождения блока
+      pinned = sec.getAttribute('data-swing') !== 'inline' && !reduce && window.innerWidth > 980 && window.innerHeight > 680;
       sec.classList.toggle('is-pinned', pinned);
     }
     function progress() {

@@ -11,7 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
 const SITE = 'АНО «ИДС»';
-const VERSION = '9';
+const VERSION = '10';
 // Вращение знака на шторке (мс): оборот и разгон после клика — те же, что curtSpin / curtRamp в site.css.
 // Скрипт в <head> по времени клика ставит --sd, чтобы новая страница продолжила вращение с того же угла:
 // после разгона угол = 360° · (прошло − RAMP/2) / SPIN.
@@ -113,6 +113,11 @@ function seam(attrs) {
     `<span class="seam-r"><i class="seam-dot"></i><span class="seam-coord">${COORD}</span></span></div></div>`;
 }
 
+// Помеченные пустые места: <p class="todo" data-todo>…</p> — данные, которых ещё нет.
+// Локально и на preview-деплоях они видны; в production (VERCEL_ENV=production) вырезаются, чтобы не попасть на боевой сайт.
+const TODO_RE = /[ \t]*<p class="todo" data-todo>[\s\S]*?<\/p>\n?/g;
+const PROD = process.env.VERCEL_ENV === 'production';
+
 function buildPages() {
   const header = read('partials/header.html');
   const footer = read('partials/footer.html');
@@ -127,8 +132,9 @@ function buildPages() {
     const html = head({ title, description: meta.description, nav }) + hdr +
       '<main id="main">\n' + raw.slice(m[0].length).replace(SEAM_RE, (_, at) => seam(at)) + '</main>\n' +
       (meta.nofooter ? '' : footer) + foot;
-    writeFileSync(join(OUT, name), logo(html));
-    console.log('built', name);
+    const todos = (html.match(TODO_RE) || []).length;
+    writeFileSync(join(OUT, name), logo(PROD ? html.replace(TODO_RE, '') : html));
+    console.log('built', name + (todos ? ` — помеченных пустых мест: ${todos}${PROD ? ' (вырезаны: production)' : ''}` : ''));
   }
 }
 
