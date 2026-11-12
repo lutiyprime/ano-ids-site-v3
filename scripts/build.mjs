@@ -11,7 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
 const SITE = 'АНО «ИДС»';
-const VERSION = '8';
+const VERSION = '9';
 // Вращение знака на шторке (мс): оборот и разгон после клика — те же, что curtSpin / curtRamp в site.css.
 // Скрипт в <head> по времени клика ставит --sd, чтобы новая страница продолжила вращение с того же угла:
 // после разгона угол = 360° · (прошло − RAMP/2) / SPIN.

@@ -28,13 +28,14 @@
       <div class="motif" data-motif="signal" aria-hidden="true"></div>
     </div>
 
-    <!-- ФОРМА. Укажите адрес обработчика в action (POST, поля name/org/contact/task/consent).
-         Скрипт отправляет форму через fetch и ждёт ответ 2xx. Пока action пуст, форма сообщает, что отправка не настроена. -->
-    <form class="form" id="form" action="" method="post" novalidate data-form data-reveal>
-      <div class="field"><label for="f-name">Имя <span class="req">*</span></label><input id="f-name" name="name" autocomplete="name" required></div>
-      <div class="field"><label for="f-org">Организация</label><input id="f-org" name="org" autocomplete="organization"></div>
-      <div class="field"><label for="f-contact">E-mail или телефон <span class="req">*</span></label><input id="f-contact" name="contact" autocomplete="email" required></div>
-      <div class="field"><label for="f-task">Задача <span class="req">*</span></label><textarea id="f-task" name="task" rows="4" required></textarea></div>
+    <!-- ФОРМА-ЗАГЛУШКА. Заявка пока никуда не отправляется: форма проверяет поля, показывает отправку и подтверждение.
+         Отправка подключается в одном месте — функция submitLead(lead) в assets/js/site.js (там же описан договор).
+         Поля: name, org, contact, task, consent. Тексты ошибок — LEAD_RULES в том же файле. -->
+    <form class="form" id="form" method="post" novalidate data-form data-reveal>
+      <div class="field"><label for="f-name">Имя <span class="req">*</span></label><input id="f-name" name="name" autocomplete="name" maxlength="100" required></div>
+      <div class="field"><label for="f-org">Организация</label><input id="f-org" name="org" autocomplete="organization" maxlength="150"></div>
+      <div class="field"><label for="f-contact">E-mail или телефон <span class="req">*</span></label><input id="f-contact" name="contact" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="100" required></div>
+      <div class="field"><label for="f-task">Задача <span class="req">*</span></label><textarea id="f-task" name="task" rows="4" maxlength="2000" required></textarea></div>
       <!-- С 01.09.2025 согласие на обработку ПДн оформляется отдельно от иных документов (ч. 1 ст. 9 152-ФЗ): текст согласия — на странице consent.html, галочка не проставлена заранее. -->
       <label class="consent"><input type="checkbox" name="consent" value="yes" required><span>Даю <a href="consent.html" target="_blank">согласие на&nbsp;обработку персональных данных</a> <span class="req">*</span></span></label>
       <p class="consent-note">Отправляя форму, вы подтверждаете, что ознакомились с&nbsp;<a href="privacy.html" target="_blank">Политикой обработки персональных данных</a>.</p>

@@ -145,14 +145,21 @@ address{font-style:normal}
 .menu{position:fixed;inset:0;z-index:45;background:var(--ink);color:var(--paper);padding-top:calc(var(--header) + 24px);clip-path:inset(0 0 100% 0);transition:clip-path .7s var(--ease-io);display:block}
 .menu[hidden]{display:none}
 .menu.open{clip-path:inset(0 0 0 0)}
-.menu-in{display:flex;flex-direction:column;height:100%;padding-bottom:32px}
-.menu ol li{border-top:1px solid rgba(244,241,234,.12);overflow:hidden}
+.menu{overflow-y:auto;overscroll-behavior:contain}
+.menu-in{display:flex;flex-direction:column;min-height:100%;padding-bottom:32px}
+/* Кнопка заявки в меню: на телефоне кнопки в шапке нет */
+.menu-cta{--acc:var(--accent);--fg:var(--paper);--bg:var(--ink);align-self:flex-start;margin:28px 0 24px;opacity:0;transition:opacity .5s .3s,color .45s var(--ease),border-color .45s var(--ease)}
+.menu.open .menu-cta{opacity:1}
+@media (min-width:681px){.menu-cta{display:none}} /* здесь кнопка остаётся в шапке */
+@media (max-width:480px){.menu-cta{align-self:stretch;justify-content:space-between}}.menu ol li{border-top:1px solid rgba(244,241,234,.12);overflow:hidden}
 .menu ol a{display:flex;align-items:baseline;gap:18px;padding:14px 0;font-size:clamp(28px,8vw,44px);letter-spacing:-.03em;transform:translateY(100%);transition:transform .7s var(--ease)}
 .menu ol a .mono{font-size:12px;color:var(--accent);letter-spacing:.1em}
 .menu ol a[aria-current]{color:var(--accent)}
 .menu.open ol a{transform:none}
 .menu.open ol li:nth-child(2) a{transition-delay:.04s}.menu.open ol li:nth-child(3) a{transition-delay:.08s}.menu.open ol li:nth-child(4) a{transition-delay:.12s}.menu.open ol li:nth-child(5) a{transition-delay:.16s}.menu.open ol li:nth-child(6) a{transition-delay:.2s}.menu.open ol li:nth-child(7) a{transition-delay:.24s}
 .menu-foot{margin-top:auto;font-size:12px;color:var(--ids-foam-2);letter-spacing:.06em}
+/* Низкие экраны: пункты плотнее, чтобы кнопка заявки помещалась без прокрутки */
+@media (max-height:720px){.menu{padding-top:calc(var(--header) + 8px)}.menu ol a{padding:8px 0;font-size:25px}.menu-cta{margin:18px 0 14px}.menu-in{padding-bottom:20px}}
 
 /* Шторка переходов: полный логотип (знак, «ИДС», подпись), знак вращается без остановки.
    По клику знак разгоняется (curtRamp, .35 с) и дальше крутится с постоянной скоростью (curtSpin, оборот за 1,2 с).
@@ -388,7 +395,7 @@ address{font-style:normal}
 /* Контакты и форма */
 .contact-grid{display:grid;grid-template-columns:5fr 7fr;gap:clamp(32px,6vw,120px)}
 .addr{font-size:clamp(24px,2.4vw,34px);line-height:1.2;letter-spacing:-.02em;margin:20px 0 28px}
-.form{display:grid;gap:8px}
+.form{display:grid;gap:8px;scroll-margin-top:calc(var(--header) + 24px)}
 .field{display:block;position:relative;border-bottom:1px solid var(--line-strong);padding-top:26px;transition:border-color .3s}
 .field:focus-within{border-color:var(--fg)}
 .field::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--acc);transform:scaleX(0);transform-origin:left;transition:transform .6s var(--ease)}
@@ -415,6 +422,30 @@ address{font-style:normal}
 .theme-light .field.invalid{border-color:#A3402F}.theme-light .field.invalid label{color:#A3402F}
 .consent.invalid input{border-color:#A3402F}
 .btn[disabled]{opacity:.5;pointer-events:none}
+/* Форма: ошибка под полем, состояние отправки, подтверждение */
+.field-err{margin:6px 0 2px;font-size:14px;line-height:1.4;color:#D9705E}
+.field-err[hidden]{display:none}
+.theme-light .field-err,.theme-mist .field-err{color:#A3402F}
+.consent.invalid{color:#A3402F}
+.form.is-sending .field,.form.is-sending .consent,.form.is-sending .consent-note{opacity:.55;pointer-events:none;transition:opacity .3s}
+.form.is-sending .btn{opacity:1}
+.form.is-sending .btn .arr{width:16px;height:16px;background:none;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:formSpin .7s linear infinite}
+.form.is-sending .btn .arr::after{display:none}
+@keyframes formSpin{to{transform:rotate(360deg)}}
+.form.is-done{align-content:start}
+.form.is-done>:not(.form-done){display:none}
+.form-done{outline:0;padding-top:26px;animation:formDone .6s var(--ease) both}
+@keyframes formDone{from{opacity:0;transform:translateY(12px)}}
+.form-done-mark{display:grid;place-items:center;width:52px;height:52px;border:1px solid var(--acc)}
+.form-done-mark svg{width:26px;height:26px;fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:22;stroke-dashoffset:22;animation:formCheck .5s .25s var(--ease) forwards}
+@keyframes formCheck{to{stroke-dashoffset:0}}
+.form-done-title{margin:24px 0 12px;font-size:clamp(28px,2.6vw,38px);line-height:1.1;letter-spacing:-.025em;font-weight:400}
+.form-done-text{max-width:46ch;color:var(--muted)}
+.form-done-sum{margin:28px 0 32px;border-top:1px solid var(--line-strong)}
+.form-done-sum>div{display:grid;grid-template-columns:140px 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.form-done-sum dt{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);padding-top:4px}
+.form-done-sum dd{margin:0;overflow-wrap:anywhere;white-space:pre-line}
+@media (max-width:680px){.form-done-sum>div{grid-template-columns:1fr;gap:4px}}
 
 /* Текстовая страница (политика) */
 .prose{max-width:46em}

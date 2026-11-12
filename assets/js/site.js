@@ -134,9 +134,14 @@
   /* ——— Мобильное меню ——— */
   var burger = $('.burger');
   var menu = $('#menu');
+  /* Пока меню открыто, страница под ним недоступна для клавиатуры и экранного диктора */
+  function setBackdropInert(on) {
+    $$('main, .site-footer, .notice').forEach(function (el) { el.inert = on; });
+  }
   function openMenu() {
     if (!menu) return;
     menuOpen = true;
+    setBackdropInert(true);
     menu.hidden = false;
     document.body.classList.add('menu-open');
     burger.setAttribute('aria-expanded', 'true');
@@ -148,6 +153,7 @@
   function closeMenu(instant) {
     if (!menu || !menuOpen) return;
     menuOpen = false;
+    setBackdropInert(false);
     menu.classList.remove('open');
     document.body.classList.remove('menu-open');
     burger.setAttribute('aria-expanded', 'false');
@@ -156,7 +162,13 @@
     updateHeader();
   }
   if (burger) burger.addEventListener('click', function () { menuOpen ? closeMenu() : openMenu(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+  /* Ссылка на якорь текущей страницы (например «Обсудить задачу» на странице контактов) не запускает переход — меню закрываем сами */
+  if (menu) menu.addEventListener('click', function (e) { if (e.target.closest('a[href]')) closeMenu(true); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !menuOpen) return;
+    closeMenu();
+    burger.focus();
+  });
 
   /* ——— Разбивка заголовков на слова (маска построчно) ——— */
   function wrapWords(el, cls, inner) {
@@ -1015,49 +1027,156 @@
     copyText(lines.join('\n')).then(function () { flash(copyAll, 'Все реквизиты скопированы'); }, function () { if (copyStatus) copyStatus.textContent = 'Не удалось скопировать. Выделите текст вручную.'; });
   });
 
-  /* ——— Форма обращения ——— */
-  var form = $('[data-form]');
-  if (form) {
+  /* ——— Форма обращения ———
+     ЕДИНАЯ ТОЧКА ОТПРАВКИ — функция submitLead(lead). Сейчас это ЗАГЛУШКА: заявка никуда не уходит и нигде
+     не сохраняется, функция только выдерживает паузу и сообщает об успехе. Чтобы подключить отправку,
+     замените тело функции, например:
+       return fetch('/api/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lead) })
+         .then(function (r) { if (!r.ok) throw new Error(r.status); });
+     Договор: получает объект { name, org, contact, task, consent, page } и возвращает Promise.
+     resolve — заявка принята, форма показывает подтверждение; reject — ошибка, форма предлагает повторить,
+     введённый текст остаётся в полях. Остальной код формы менять не нужно. */
+  function submitLead(lead) {
+    return new Promise(function (resolve) { setTimeout(resolve, 900); });
+  }
+
+  /* Правила проверки: имя поля → функция, которая возвращает текст ошибки или пустую строку */
+  var LEAD_RULES = {
+    name: function (v) { return v ? '' : 'Укажите, как к вам обращаться.'; },
+    contact: function (v) {
+      if (!v) return 'Укажите e-mail или телефон.';
+      var digits = v.replace(/\D/g, '').length;
+      var mail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+      var phone = /^\+?[\d\s().-]+$/.test(v) && digits >= 10 && digits <= 15;
+      return mail || phone ? '' : 'Проверьте e-mail или телефон. Например: name@company.ru или +7 900 000-00-00.';
+    },
+    task: function (v) {
+      if (!v) return 'Опишите задачу в двух-трёх предложениях.';
+      return v.length >= 10 ? '' : 'Опишите задачу чуть подробнее — хотя бы одним предложением.';
+    },
+    consent: function (checked) { return checked ? '' : 'Без согласия на обработку персональных данных мы не можем принять заявку.'; }
+  };
+
+  $$('[data-form]').forEach(function (form) {
     var status = $('[data-form-status]', form);
-    var fields = $$('.field', form);
-    fields.forEach(function (f) {
-      var input = $('input,textarea', f);
-      var sync = function () { f.classList.toggle('filled', !!input.value); if (input.value) f.classList.remove('invalid'); };
-      input.addEventListener('input', sync); input.addEventListener('change', sync); sync();
-    });
-    form.elements.consent.addEventListener('change', function () { if (this.checked) this.closest('.consent').classList.remove('invalid'); });
+    var btn = $('button[type="submit"]', form);
+    var btnText = $('span', btn);
+    var btnLabel = btnText.textContent;
+    var controls = $$('input,textarea', form).filter(function (c) { return c.name; });
+    var tried = false, busy = false;
+
+    function value(c) { return c.type === 'checkbox' ? c.checked : c.value.trim(); }
+    function box(c) { return c.closest('.field') || c.closest('.consent'); }
+    function errEl(c) {
+      var id = 'f-' + c.name + '-err';
+      var el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('p');
+        el.className = 'field-err'; el.id = id; el.hidden = true;
+        box(c).insertAdjacentElement('afterend', el);
+      }
+      return el;
+    }
+    function check(c) {
+      var rule = LEAD_RULES[c.name];
+      if (!rule) return true;
+      var msg = rule(value(c)), el = errEl(c);
+      box(c).classList.toggle('invalid', !!msg);
+      if (msg) { c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', el.id); }
+      else { c.removeAttribute('aria-invalid'); c.removeAttribute('aria-describedby'); }
+      el.textContent = msg; el.hidden = !msg;
+      return !msg;
+    }
     function setStatus(msg, cls) { status.textContent = msg; status.className = 'form-status' + (cls ? ' ' + cls : ''); }
+    function setBusy(on) {
+      busy = on;
+      form.classList.toggle('is-sending', on);
+      if (on) form.setAttribute('aria-busy', 'true'); else form.removeAttribute('aria-busy');
+      btn.disabled = on;
+      btnText.textContent = on ? 'Отправляем…' : btnLabel;
+      controls.forEach(function (c) { if (c.type !== 'checkbox') c.readOnly = on; });
+    }
+    function syncFilled(c) { var f = c.closest('.field'); if (f) f.classList.toggle('filled', !!c.value); }
+
+    controls.forEach(function (c) {
+      var onChange = function () { syncFilled(c); if (tried || c.hasAttribute('aria-invalid')) check(c); };
+      c.addEventListener('input', onChange); c.addEventListener('change', onChange);
+      if (c.type !== 'checkbox') c.addEventListener('blur', function () { if (tried || c.value.trim()) check(c); });
+      syncFilled(c);
+    });
+
+    /* Подтверждение: форма сворачивается в сводку того, что отправлено */
+    function row(dl, label, text) {
+      if (!text) return;
+      var d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = label; dd.textContent = text;
+      d.appendChild(dt); d.appendChild(dd); dl.appendChild(d);
+    }
+    function showDone(lead) {
+      var done = document.createElement('div');
+      done.className = 'form-done';
+      done.setAttribute('role', 'status');
+      done.tabIndex = -1;
+      done.innerHTML = '<span class="form-done-mark" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' +
+        '<h2 class="form-done-title">Заявка принята</h2><p class="form-done-text"></p><dl class="form-done-sum"></dl>' +
+        '<button class="link-arrow" type="button">Отправить ещё одну заявку <i class="arr" aria-hidden="true"></i></button>';
+      $('.form-done-text', done).textContent = 'Спасибо, ' + lead.name + '. Мы прочитаем описание задачи и свяжемся с вами по указанному контакту.';
+      var dl = $('dl', done);
+      row(dl, 'Контакт', lead.contact);
+      row(dl, 'Организация', lead.org);
+      row(dl, 'Задача', lead.task.length > 280 ? lead.task.slice(0, 280).trim() + '…' : lead.task);
+      form.style.minHeight = form.offsetHeight + 'px'; // страница не «прыгает» при смене содержимого
+      setBusy(false);
+      setStatus('');
+      form.classList.add('is-done');
+      form.appendChild(done);
+      done.focus({ preventScroll: true });
+      var top = form.getBoundingClientRect().top;
+      if (top < 80 || top > window.innerHeight * 0.6) window.scrollTo({ top: window.pageYOffset + top - 110, behavior: reduce ? 'auto' : 'smooth' });
+      $('button', done).addEventListener('click', function () {
+        done.remove();
+        form.reset();
+        tried = false;
+        controls.forEach(syncFilled);
+        $$('.invalid', form).forEach(function (el) { el.classList.remove('invalid'); });
+        $$('.field-err', form).forEach(function (el) { el.hidden = true; el.textContent = ''; });
+        controls.forEach(function (c) { c.removeAttribute('aria-invalid'); c.removeAttribute('aria-describedby'); });
+        form.classList.remove('is-done');
+        form.style.minHeight = '';
+        controls[0].focus();
+      });
+    }
+
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var ok = true;
-      fields.forEach(function (f) {
-        var input = $('input,textarea', f), bad = input.required && !input.value.trim();
-        if (input.name === 'contact' && input.value.trim()) {
-          var v = input.value.trim();
-          bad = !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^\+?[\d\s()-]{10,}$/.test(v));
+      if (busy) return;
+      tried = true;
+      var bad = controls.filter(function (c) { return !check(c); });
+      if (bad.length) {
+        setStatus(bad.length === 1 ? 'Проверьте отмеченное поле.' : 'Проверьте отмеченные поля: ' + bad.length + '.', 'err');
+        bad[0].focus();
+        return;
+      }
+      var lead = {
+        name: value(form.elements.name),
+        org: value(form.elements.org),
+        contact: value(form.elements.contact),
+        task: value(form.elements.task),
+        consent: true,
+        page: location.pathname
+      };
+      setBusy(true);
+      setStatus('Отправляем заявку…');
+      Promise.resolve().then(function () { return submitLead(lead); }).then(
+        function () { showDone(lead); },
+        function () {
+          setBusy(false);
+          setStatus('Не удалось отправить заявку. Проверьте соединение и попробуйте ещё раз — текст в полях сохранён.', 'err');
+          btn.focus();
         }
-        f.classList.toggle('invalid', bad);
-        if (bad) ok = false;
-      });
-      var consent = form.elements.consent;
-      consent.closest('.consent').classList.toggle('invalid', !consent.checked);
-      if (!consent.checked) ok = false;
-      if (!ok) { setStatus('Заполните обязательные поля и подтвердите согласие на обработку данных.', 'err'); return; }
-      var action = form.getAttribute('action');
-      if (!action) { setStatus('Отправка формы пока не подключена.', 'err'); return; }
-      var btn = $('button[type="submit"]', form);
-      btn.disabled = true; setStatus('Отправляем…');
-      fetch(action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } })
-        .then(function (r) {
-          if (!r.ok) throw new Error(r.status);
-          form.reset();
-          fields.forEach(function (f) { f.classList.remove('filled'); });
-          setStatus('Спасибо! Заявка отправлена, мы свяжемся с вами.', 'ok');
-        })
-        .catch(function () { setStatus('Не удалось отправить. Попробуйте ещё раз позже.', 'err'); })
-        .then(function () { btn.disabled = false; });
+      );
     });
-  }
+  });
 
   /* ═══════════ v3: иконки, мотивы, стыки, уведомление ═══════════ */
 
